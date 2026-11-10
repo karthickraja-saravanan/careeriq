@@ -15,7 +15,7 @@ export function Interview({ go }: { go: (v: string) => void }) {
   const [resumeSel, setResumeSel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"faq" | "practice">("faq");
+  const [mode, setMode] = useState<"faq" | "practice">("practice");
 
   useEffect(() => { api.listInterviewPreps().then(setPreps).catch(() => undefined); }, []);
 
@@ -73,7 +73,7 @@ export function Interview({ go }: { go: (v: string) => void }) {
               <div className="iv-main">
                 {prep.stale && <p className="chip warn notice" role="status">Your resume or this job changed since these were generated. Regenerate to refresh.</p>}
                 <div className="seg" role="tablist" aria-label="View">
-                  {([["faq", "Question list", ListChecks], ["practice", "Practice mode", Layers]] as const).map(([id, label, Icon]) => (
+                  {([["practice", "Practice mode", Layers], ["faq", "Question list", ListChecks]] as const).map(([id, label, Icon]) => (
                     <button key={id} type="button" role="tab" aria-selected={mode === id} className="seg-item" onClick={() => setMode(id)}>
                       {mode === id && <motion.span layoutId="seg-pill" className="seg-pill" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
                       <Icon size={16} aria-hidden="true" /><span>{label}</span>
