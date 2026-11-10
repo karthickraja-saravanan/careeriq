@@ -1,11 +1,12 @@
-import { RefreshCw } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { Layers, ListChecks, RefreshCw } from "lucide-react";
+import { FaqList } from "../interview/FaqList";
+import { PracticeMode } from "../interview/PracticeMode";
 import { AiButton } from "../AiButton";
 import { useEffect, useState } from "react";
 import { api, type InterviewPrep } from "../api";
 import { PageHead } from "../ui";
 import { readyJobs, readyResumes, resumeOption, useCareerData } from "../useCareerData";
-
-const KIND: Record<string, string> = { experience: "From your resume", gap: "Gap", technical: "Technical", behavioral: "Behavioral" };
 
 export function Interview({ go }: { go: (v: string) => void }) {
   const { data } = useCareerData();
@@ -14,7 +15,7 @@ export function Interview({ go }: { go: (v: string) => void }) {
   const [resumeSel, setResumeSel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [openCite, setOpenCite] = useState<string | null>(null);
+  const [mode, setMode] = useState<"faq" | "practice">("faq");
 
   useEffect(() => { api.listInterviewPreps().then(setPreps).catch(() => undefined); }, []);
 
@@ -28,7 +29,7 @@ export function Interview({ go }: { go: (v: string) => void }) {
 
   const generate = async () => {
     if (!job) return;
-    setBusy(true); setError(null); setOpenCite(null);
+    setBusy(true); setError(null);
     try {
       const p = await api.generateInterviewPrep(job.id, resume?.id);
       setPreps((l) => [...l.filter((x) => !(x.jobId === p.jobId && x.resumeId === p.resumeId)), p]);
@@ -50,12 +51,12 @@ export function Interview({ go }: { go: (v: string) => void }) {
       ) : (
         <>
           <div className="pill-select" role="group" aria-label="Choose a role">
-            {jobs.map((j) => (<button key={j.id} className="pill" aria-pressed={j.id === job?.id} onClick={() => { setSelected(j.id); setOpenCite(null); setError(null); }}>{j.label} · {j.company ?? j.title ?? "Job"}</button>))}
+            {jobs.map((j) => (<button key={j.id} className="pill" aria-pressed={j.id === job?.id} onClick={() => { setSelected(j.id); setError(null); }}>{j.label} · {j.company ?? j.title ?? "Job"}</button>))}
           </div>
           {resumes.length > 1 && (
             <label className="compare-pick">
               <span className="label">Prepare using resume</span>
-              <select className="select" value={resume?.id ?? ""} onChange={(e) => { setResumeSel(e.target.value); setOpenCite(null); }}>
+              <select className="select" value={resume?.id ?? ""} onChange={(e) => { setResumeSel(e.target.value); }}>
                 {resumes.map((r) => <option key={r.id} value={r.id}>{resumeOption(r)}</option>)}
               </select>
             </label>
@@ -68,27 +69,24 @@ export function Interview({ go }: { go: (v: string) => void }) {
               <div className="row"><AiButton busy={busy} busyLabel="Generating…" onClick={() => void generate()}>Generate questions</AiButton></div>
             </div>
           ) : (
-            <section className="grid cols-2">
-              <div className="grid">
+            <section className="iv-layout">
+              <div className="iv-main">
                 {prep.stale && <p className="chip warn notice" role="status">Your resume or this job changed since these were generated. Regenerate to refresh.</p>}
-                {prep.report.questions.map((q) => (
-                  <article className="card" key={q.question}>
-                    <div className="row spread">
-                      <h2>{q.question}</h2>
-                      <span className="row">
-                        <span className={`chip ${q.kind === "gap" ? "warn" : ""}`}>{KIND[q.kind]}</span>
-                        {q.basedOn.map((c) => (<button key={c} type="button" className="chip cite" aria-label={`Show source ${c}`} onClick={() => setOpenCite(openCite === c ? null : c)}>{c}</button>))}
-                      </span>
-                    </div>
-                    {q.why && <p className="caption">{q.why}</p>}
-                    {q.structure && (<><span className="label">Suggested structure</span><p>{q.structure}</p></>)}
-                    {q.basedOn.includes(openCite ?? "") && prep.report.sources[openCite!] && (
-                      <blockquote className="source"><strong>{openCite} · {prep.report.sources[openCite!]!.section}</strong><span>{prep.report.sources[openCite!]!.content}</span></blockquote>
-                    )}
-                  </article>
-                ))}
+                <div className="seg" role="tablist" aria-label="View">
+                  {([["faq", "Question list", ListChecks], ["practice", "Practice mode", Layers]] as const).map(([id, label, Icon]) => (
+                    <button key={id} type="button" role="tab" aria-selected={mode === id} className="seg-item" onClick={() => setMode(id)}>
+                      {mode === id && <motion.span layoutId="seg-pill" className="seg-pill" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
+                      <Icon size={16} aria-hidden="true" /><span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div key={mode} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
+                    {mode === "faq" ? <FaqList report={prep.report} /> : <PracticeMode report={prep.report} />}
+                  </motion.div>
+                </AnimatePresence>
               </div>
-              <div className="grid" style={{ alignSelf: "start" }}>
+              <aside className="iv-side">
                 <div className="card">
                   <h2>Topics to prepare</h2>
                   {prep.report.topics.length
@@ -97,7 +95,7 @@ export function Interview({ go }: { go: (v: string) => void }) {
                   <p className="caption">Do not claim experience you lack. Interviewers respond well to an honest gap with a concrete plan.</p>
                 </div>
                 <AiButton variant="secondary" icon={RefreshCw} busy={busy} busyLabel="Generating…" onClick={() => void generate()}>Regenerate questions</AiButton>
-              </div>
+              </aside>
             </section>
           )}
         </>
