@@ -3,9 +3,15 @@ import type { JobInfo } from "../api";
 import { PageHead, Ring, scoreTone } from "../ui";
 import { needsAnalysis, readyJobs, useCareerData } from "../useCareerData";
 
+/** "Good morning" / "Good afternoon" / "Good evening" from the viewer's local clock. */
+export function greeting(date = new Date()): string {
+  const h = date.getHours();
+  return h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+}
+
 export function Dashboard({ go }: { go: (v: string) => void }) {
   const { data, error, busy, analyze } = useCareerData();
-  if (!data) return <PageHead title="Where you stand" lead="Loading your documents…" />;
+  if (!data) return <PageHead title={greeting()} lead="Loading your documents…" />;
 
   const { resume, jobs, analyses } = data;
   const resumeReady = resume?.status === "ready" && resume.parsed;
@@ -22,13 +28,14 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
   ranked.forEach(({ a }) => a.report.requirements.filter((r) => r.kind === "required" && r.verdict === "missing").forEach((r) => gaps.set(r.requirement, (gaps.get(r.requirement) ?? 0) + 1)));
   const topGaps = [...gaps.entries()].sort((x, y) => y[1] - x[1]).slice(0, 8);
 
+  const firstName = resume?.parsed?.name?.trim().split(/\s+/)[0];
   const lead = !resumeReady ? "Start by adding your resume and a few job descriptions."
     : best ? `${best.job.label} at ${best.job.company ?? best.job.title} is your closest fit.`
     : "Your resume is ready. Analyze your roles to see how you compare.";
 
   return (
     <>
-      <PageHead title="Where you stand" lead={lead} />
+      <PageHead title={resumeReady && firstName ? `${greeting()}, ${firstName}` : greeting()} lead={lead} />
       {error && <p role="alert" className="chip bad notice">{error}</p>}
       <section className="grid cols-3" aria-label="Summary">
         <div className="card tight"><span className="label">Resume</span>
