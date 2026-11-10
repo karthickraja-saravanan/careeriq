@@ -55,16 +55,12 @@ h3 { font-size: 14px; font-weight: 600; color: var(--ink-strong); }
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 button { font: inherit; color: inherit; }
 
-/* shell */
-.nav { position: sticky; top: 0; z-index: 5; background: var(--canvas); border-bottom: 1px solid var(--hairline); }
-.nav-inner { max-width: 1120px; margin: 0 auto; height: 72px; display: flex; align-items: center; gap: 24px;
-  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); }
+/* shell: see also chat/chat.css for the sidebar */
 .wordmark { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; color: var(--ink-strong); text-decoration: none; white-space: nowrap; }
 .wordmark span { color: var(--primary); }
-.tabs { display: flex; gap: 4px; overflow-x: auto; flex: 1; min-width: 0; scrollbar-width: none; }
-.tab { border: 0; background: transparent; color: var(--muted); padding: 8px 14px; border-radius: var(--r-pill); font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
-.tab:hover { background: var(--cream); color: var(--ink); }
-.tab[aria-current="page"] { background: var(--cta); color: var(--cta-text); }
+.app { display: flex; height: 100dvh; background: var(--canvas); }
+.app-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.app-main { flex: 1; min-height: 0; overflow-y: auto; }
 main { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px;
   padding-block: 40px 64px; padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); }
 .head { display: flex; flex-direction: column; gap: 12px; }
@@ -120,7 +116,6 @@ main { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column;
 
 @media (max-width: 640px) {
   h1 { font-size: 28px; }
-  .nav-inner { gap: 12px; }
   main { padding-block: 24px 48px; }
 }
 @media (prefers-reduced-motion: no-preference) { .bar-fill { transition: width 0.4s ease; } }
@@ -160,6 +155,5 @@ main { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column;
 @keyframes ai-shimmer { to { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { .ai-btn.busy::after, .ai-btn:hover .ai-icon-idle svg { animation: none; } }
 
-/* assistant page runs full-bleed under the nav */
-main.bleed { max-width: none; padding: 0; gap: 0; }
-.nav.on-dark { --canvas: #171717; --ink: #ececee; --ink-strong: #fafafa; --muted: #a2a2ac; --cream: #2a2a2a; --cta: #fafafa; --cta-text: #131316; --primary: #6c97ff; --hairline: #2f2f2f; }
+/* assistant page runs full-bleed */
+main.bleed { max-width: none; padding: 0; gap: 0; height: 100%; }

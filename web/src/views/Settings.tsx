@@ -4,9 +4,7 @@ import { api } from "../api";
 import { PageHead } from "../ui";
 import { useCareerData } from "../useCareerData";
 
-const forgetConversation = () => { try { localStorage.removeItem("careeriq.conversation"); } catch { /* storage unavailable */ } };
-
-export function Settings({ go }: { go: (v: string) => void }) {
+export function Settings({ go, onReset }: { go: (v: string) => void; onReset: () => void }) {
   const { data } = useCareerData();
   const [busy, setBusy] = useState<"seed" | "clear" | null>(null);
   const [message, setMessage] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
@@ -27,7 +25,7 @@ export function Settings({ go }: { go: (v: string) => void }) {
         await api.clearAllData();
         setMessage({ tone: "good", text: "All your data was deleted." });
       }
-      forgetConversation();
+      onReset();
     } catch (e) {
       setMessage({ tone: "bad", text: e instanceof Error ? e.message : "Something went wrong" });
     } finally {

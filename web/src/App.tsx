@@ -6,20 +6,15 @@ import { Jobs } from "./views/Jobs";
 import { Compare } from "./views/Compare";
 import { Assistant } from "./views/Assistant";
 import { MotionConfig } from "motion/react";
+import "./chat/chat.css";
+import { AppShell } from "./shell/AppShell";
+import { useChat } from "./chat/useChat";
 import { Settings } from "./views/Settings";
 import { Interview } from "./views/Interview";
 
-const views = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "resume", label: "Resume" },
-  { id: "jobs", label: "Jobs" },
-  { id: "compare", label: "Compare" },
-  { id: "assistant", label: "Assistant" },
-  { id: "interview", label: "Interview prep" },
-  { id: "settings", label: "Settings" },
-] as const;
+const VIEWS = ["dashboard", "resume", "jobs", "compare", "assistant", "interview", "settings"];
 
-const fromHash = () => (views.find((v) => v.id === location.hash.slice(1)) ?? views[0]).id as string;
+const fromHash = () => VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "dashboard";
 
 export function App() {
   const [view, setView] = useState(fromHash);
@@ -29,28 +24,19 @@ export function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   const go = (id: string) => { location.hash = id; };
+  const chat = useChat(); // lives here so the sidebar history and the Assistant page share it, and a running answer survives navigation
 
   return (
     <MotionConfig reducedMotion="user">
-      <nav className={`nav ${view === "assistant" ? "on-dark" : ""}`} aria-label="Main">
-        <div className="nav-inner">
-          <a className="wordmark" href="#dashboard">career<span>IQ</span></a>
-          <div className="tabs">
-            {views.map((v) => (
-              <button key={v.id} className="tab" aria-current={view === v.id ? "page" : undefined} onClick={() => go(v.id)}>{v.label}</button>
-            ))}
-          </div>
-        </div>
-      </nav>
-      <main className={view === "assistant" ? "bleed" : undefined}>
+      <AppShell view={view} go={go} chat={chat}>
         {view === "dashboard" && <Dashboard go={go} />}
         {view === "resume" && <Resumes />}
         {view === "jobs" && <Jobs />}
         {view === "compare" && <Compare go={go} />}
-        {view === "assistant" && <Assistant go={go} />}
+        {view === "assistant" && <Assistant go={go} chat={chat} />}
         {view === "interview" && <Interview go={go} />}
-        {view === "settings" && <Settings go={go} />}
-      </main>
+        {view === "settings" && <Settings go={go} onReset={chat.reset} />}
+      </AppShell>
     </MotionConfig>
   );
 }

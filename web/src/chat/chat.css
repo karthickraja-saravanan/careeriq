@@ -1,16 +1,18 @@
 /* ChatGPT-style assistant. Always dark, independent of the site theme. Scoped to .gpt. */
-.gpt {
+.gpt, .sidebar {
   --g-bg: #212121; --g-side: #171717; --g-input: #303030; --g-hover: #2a2a2a; --g-active: #333;
   --g-text: #f5f5f5; --g-muted: #a1a1aa; --g-border: #2f2f2f; --g-accent: #6c97ff; --g-accent-soft: #1d2a4d;
-  --canvas: #212121; --ink: #f5f5f5; --ink-strong: #fff; --muted: #a1a1aa; --primary: #6c97ff; --link: #6c97ff; --cream: #2a2a2a; --hairline: #2f2f2f;
-  display: flex; height: calc(100dvh - 73px); min-height: 420px; background: var(--g-bg); color: var(--g-text); color-scheme: dark; overflow: hidden;
 }
-.gpt button { cursor: pointer; }
-.gpt button:disabled { cursor: not-allowed; }
+.gpt {
+  --canvas: #212121; --ink: #f5f5f5; --ink-strong: #fff; --muted: #a1a1aa; --primary: #6c97ff; --link: #6c97ff; --cream: #2a2a2a; --hairline: #2f2f2f;
+  display: flex; height: 100%; min-height: 420px; background: var(--g-bg); color: var(--g-text); color-scheme: dark; overflow: hidden;
+}
+.gpt button, .sidebar button { cursor: pointer; }
+.gpt button:disabled, .sidebar button:disabled { cursor: not-allowed; }
 .gpt .link { color: var(--g-accent); }
 
 /* sidebar */
-.sidebar { background: var(--g-side); flex: none; display: flex; flex-direction: column; padding: 8px; gap: 4px; overflow: hidden; min-height: 0; }
+.sidebar { color: var(--g-text); font-size: 14px; background: var(--g-side); flex: none; display: flex; flex-direction: column; padding: 8px; gap: 4px; overflow: hidden; min-height: 0; }
 .sidebar .wordmark { color: #fff; padding-left: 6px; }
 .sidebar .wordmark span { color: var(--g-accent); }
 .side-top { display: flex; align-items: center; justify-content: space-between; height: 44px; }
@@ -43,8 +45,8 @@
 .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--g-accent); color: #0b1020; font-weight: 600; display: grid; place-items: center; flex: none; }
 .profile-name { flex: 1; min-width: 0; display: flex; flex-direction: column; color: var(--g-text); font-weight: 500; line-height: 1.2; }
 .profile-name small { color: var(--g-muted); font-weight: 400; font-size: 12px; }
-.scrim { position: fixed; inset: 73px 0 0 0; background: rgb(0 0 0 / 0.55); z-index: 30; }
-.sidebar.drawer { position: fixed; top: 73px; bottom: 0; left: 0; width: 268px; z-index: 31; box-shadow: 8px 0 32px rgb(0 0 0 / 0.5); }
+.scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 0.55); z-index: 30; }
+.sidebar.drawer { position: fixed; top: 0; bottom: 0; left: 0; width: 268px; z-index: 31; box-shadow: 8px 0 32px rgb(0 0 0 / 0.5); }
 
 /* main */
 .chat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--g-bg); }
@@ -123,9 +125,27 @@
 .composer-note { text-align: center; font-size: 12px; color: #8a8a93; margin-top: 8px; }
 
 @media (max-width: 767px) {
+  .chat-header { display: none; }
   .prompts { grid-template-columns: 1fr; }
   .user-bubble { max-width: 88%; }
   .ai-avatar { display: none; }
   .thread { gap: 22px; padding-inline: 14px; }
   .composer-note { display: none; }
 }
+
+/* app navigation */
+.side-nav { display: flex; flex-direction: column; gap: 2px; padding-block: 4px 8px; }
+.side-link { position: relative; display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--g-muted); font-weight: 500; white-space: nowrap; text-align: left; }
+.side-link > svg, .side-link > span:not(.side-active) { position: relative; z-index: 1; }
+.side-link:hover { background: var(--g-hover); color: var(--g-text); }
+.side-link[aria-current="page"] { color: #fff; }
+.side-link.rail { width: 44px; justify-content: center; padding: 0; margin-inline: auto; }
+.side-active { position: absolute; inset: 0; border-radius: 10px; background: var(--g-active); }
+.side-link:hover .side-active { background: var(--g-active); }
+.profile.on { background: var(--g-active); color: var(--g-text); }
+.sidebar .grow { flex: 1; }
+.sidebar .side-scroll { margin-top: 4px; border-top: 1px solid var(--g-border); }
+.topbar { flex: none; height: 52px; display: flex; align-items: center; justify-content: space-between; padding-inline: 8px; background: #171717; color: #f5f5f5; border-bottom: 1px solid #2f2f2f; }
+.topbar .icon-btn { color: #a1a1aa; }
+.topbar-title { font-weight: 600; font-size: 15px; }
+@media (max-width: 767px) { .app { flex-direction: column; } }

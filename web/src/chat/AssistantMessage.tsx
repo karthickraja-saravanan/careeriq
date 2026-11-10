@@ -13,6 +13,9 @@ interface Props {
   animate?: boolean;
 }
 
+/** Short replies (greetings, "I could not find that") make no claims about the documents, so they need no sources. */
+const SUBSTANTIVE = 200;
+
 export function AssistantMessage({ text, sources, streaming = false, animate = false }: Props) {
   const [open, setOpen] = useState<string | null>(null);
   const known = useMemo(() => new Set(sources.map((s) => s.cite.toUpperCase())), [sources]);
@@ -25,7 +28,7 @@ export function AssistantMessage({ text, sources, streaming = false, animate = f
       <div className="ai-body">
         <Markdown text={text} knownCites={known} openCite={open} onCite={toggle} />
         {streaming && <span className="caret" aria-hidden="true" />}
-        {!streaming && sources.length === 0 && <p className="no-sources">No sources were cited for this answer.</p>}
+        {!streaming && sources.length === 0 && text.length > SUBSTANTIVE && <p className="no-sources">No sources were cited for this answer.</p>}
         {!streaming && sources.length > 0 && (
           <div className="sources" aria-label="Sources">
             <span className="sources-label">Sources</span>

@@ -93,8 +93,8 @@ export function useChat() {
     }
   }, []);
 
-  return { conversations, activeId, messages, streaming, busy, error, fresh, send, stop, select, remove, rename, clearError: () => setError(null) };
-}
+  /** After data was cleared or replaced elsewhere: forget the open conversation and reload the list. */
+  const reset = useCallback(() => { select(null); void refreshList(); }, [select, refreshList]);
 
-/** Forget the remembered conversation (used when data is deleted elsewhere). */
-export const forgetConversation = () => write(null);
+  return { reset, conversations, activeId, messages, streaming, busy, error, fresh, send, stop, select, remove, rename, clearError: () => setError(null) };
+}
