@@ -102,6 +102,16 @@ describe.skipIf(!TEST_DB_URL)("chat (integration)", () => {
     expect(history.messages.map((m: { role: string }) => m.role)).toEqual(["user"]);
   });
 
+  it("renames a conversation and validates the new title", async () => {
+    const id = await newConversation();
+    const patch = (body: object, cid = id) => fetch(`${t.base}/conversations/${cid}`, { method: "PATCH", headers: json, body: JSON.stringify(body) });
+    const ok = await patch({ title: "  Kafka gap plan  " });
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).title).toBe("Kafka gap plan");
+    expect((await patch({ title: "   " })).status).toBe(400);
+    expect((await patch({ title: "x" }, "00000000-0000-0000-0000-0000000000aa")).status).toBe(404);
+  });
+
   it("validates input and unknown conversations", async () => {
     const id = await newConversation();
     expect((await ask(id, "   ")).status).toBe(400);
@@ -120,6 +130,7 @@ describe.skipIf(!TEST_DB_URL)("chat (integration)", () => {
     expect((await fetch(`${t.base}/conversations/${otherId}/messages`)).status).toBe(404);
     expect((await ask(otherId, "hello")).status).toBe(404);
     expect((await fetch(`${t.base}/conversations/${otherId}`, { method: "DELETE" })).status).toBe(404);
+    expect((await fetch(`${t.base}/conversations/${otherId}`, { method: "PATCH", headers: json, body: JSON.stringify({ title: "mine now" }) })).status).toBe(404);
     await t.pool.query("DELETE FROM users WHERE id = '00000000-0000-0000-0000-000000000002'");
   });
 

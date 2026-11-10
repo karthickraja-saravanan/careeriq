@@ -1,3 +1,5 @@
+import { RefreshCw } from "lucide-react";
+import { AiButton } from "../AiButton";
 import { useRef, useState } from "react";
 import { api, isPending, type JobInfo, type JobParsed } from "../api";
 import { useAsyncList } from "../useAsyncList";
@@ -92,7 +94,7 @@ export function Jobs() {
                 )}
                 <div className="row">
                   {j.status === "ready" && <button className="btn secondary" onClick={() => setEditingId(j.id)}>Edit</button>}
-                  {(j.status === "ready" || j.status === "failed") && <button className="btn secondary" disabled={busy} onClick={() => void run(() => api.reparseJob(j.id))}>Reparse</button>}
+                  {(j.status === "ready" || j.status === "failed") && <AiButton variant="secondary" icon={RefreshCw} busy={busy} busyLabel="Reparsing…" onClick={() => void run(() => api.reparseJob(j.id))}>Reparse</AiButton>}
                   <button className="btn secondary" onClick={() => void run(() => api.deleteJob(j.id))}>Delete</button>
                 </div>
               </>

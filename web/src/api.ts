@@ -134,6 +134,7 @@ export const api = {
   listConversations: () => request<{ conversations: Conversation[] }>("/conversations").then((r) => r.conversations),
   createConversation: () => request<Conversation>("/conversations", { method: "POST" }),
   conversationMessages: (id: string) => request<{ messages: ChatMessage[] }>(`/conversations/${id}/messages`).then((r) => r.messages),
+  renameConversation: (id: string, title: string) => request<Conversation>(`/conversations/${id}`, { method: "PATCH", headers: JSON_HEADERS, body: JSON.stringify({ title }) }),
   deleteConversation: (id: string) => request<void>(`/conversations/${id}`, { method: "DELETE" }),
 
   listResumes: () => request<{ resumes: ResumeInfo[] }>("/resumes").then((r) => r.resumes),

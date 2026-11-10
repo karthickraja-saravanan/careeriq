@@ -1,3 +1,5 @@
+import { RefreshCw } from "lucide-react";
+import { AiButton } from "../AiButton";
 import { useRef, useState } from "react";
 import { api, isPending, type DocInfo, type ResumeInfo, type ResumeParsed } from "../api";
 import { useAsyncList } from "../useAsyncList";
@@ -57,7 +59,7 @@ export function Resumes() {
             <div className="row">
               <StatusChip d={current} edited={current.userEdited} />
               {current.status === "ready" && !editing && <button className="btn secondary" onClick={() => setEditing(true)}>Edit</button>}
-              {(current.status === "ready" || current.status === "failed") && <button className="btn secondary" disabled={busy} onClick={() => void run(() => api.reparseResume(current.id))}>Reparse</button>}
+              {(current.status === "ready" || current.status === "failed") && <AiButton variant="secondary" icon={RefreshCw} busy={busy} busyLabel="Reparsing…" onClick={() => void run(() => api.reparseResume(current.id))}>Reparse</AiButton>}
               <button className="btn secondary" onClick={() => void run(async () => { await api.deleteResume(current.id); setEditing(false); })}>Delete</button>
             </div>
           </div>

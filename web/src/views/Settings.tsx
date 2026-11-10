@@ -1,3 +1,4 @@
+import { AiButton } from "../AiButton";
 import { useState } from "react";
 import { api } from "../api";
 import { PageHead } from "../ui";
@@ -43,7 +44,7 @@ export function Settings({ go }: { go: (v: string) => void }) {
           <h2 id="seed-h">Sample data</h2>
           <p className="muted">Load a sample resume (a backend engineer with five years of experience) and three job descriptions, so you can try every page without uploading anything. Your current data is replaced.</p>
           <div className="row">
-            <button className="btn" type="button" disabled={busy !== null} onClick={() => void run("seed")}>{busy === "seed" ? "Loading…" : "Load sample data"}</button>
+            <AiButton busy={busy === "seed"} disabled={busy !== null} busyLabel="Loading…" onClick={() => void run("seed")}>Load sample data</AiButton>
             {message?.tone === "good" && busy === null && <button className="btn secondary" type="button" onClick={() => go("dashboard")}>Go to dashboard</button>}
           </div>
         </section>

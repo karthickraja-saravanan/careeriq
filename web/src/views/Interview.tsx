@@ -1,3 +1,5 @@
+import { RefreshCw } from "lucide-react";
+import { AiButton } from "../AiButton";
 import { useEffect, useState } from "react";
 import { api, type InterviewPrep } from "../api";
 import { PageHead } from "../ui";
@@ -52,7 +54,7 @@ export function Interview({ go }: { go: (v: string) => void }) {
             <div className="card">
               <h2>No questions yet for {job?.label}</h2>
               <p className="muted">Generating takes a few seconds. For the sharpest gap questions, run the comparison for this job first.</p>
-              <div className="row"><button className="btn" type="button" disabled={busy} onClick={() => void generate()}>{busy ? "Generating…" : "Generate questions"}</button></div>
+              <div className="row"><AiButton busy={busy} busyLabel="Generating…" onClick={() => void generate()}>Generate questions</AiButton></div>
             </div>
           ) : (
             <section className="grid cols-2">
@@ -83,7 +85,7 @@ export function Interview({ go }: { go: (v: string) => void }) {
                     : <p className="caption">No gaps found in the latest comparison, or no comparison has been run for this job yet.</p>}
                   <p className="caption">Do not claim experience you lack. Interviewers respond well to an honest gap with a concrete plan.</p>
                 </div>
-                <button className="btn secondary" type="button" disabled={busy} onClick={() => void generate()}>{busy ? "Generating…" : "Regenerate questions"}</button>
+                <AiButton variant="secondary" icon={RefreshCw} busy={busy} busyLabel="Generating…" onClick={() => void generate()}>Regenerate questions</AiButton>
               </div>
             </section>
           )}

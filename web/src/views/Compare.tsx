@@ -1,3 +1,5 @@
+import { RefreshCw } from "lucide-react";
+import { AiButton } from "../AiButton";
 import { useState } from "react";
 import type { AnalysisInfo, JobInfo, MatchReport, RequirementResult, Verdict } from "../api";
 import { Bar, Bullets, PageHead, Ring, scoreTone } from "../ui";
@@ -24,7 +26,7 @@ export function Compare({ go }: { go: (v: string) => void }) {
       <PageHead
         title="Compare and close gaps"
         lead="Each skill is judged against your resume. A skill only counts as matched when the resume text backs it up; anything else counts as missing."
-        action={todo.length > 1 ? <button className="btn" disabled={busyJobs.size > 0} onClick={() => void analyze(todo)}>{busyJobs.size ? "Analyzing…" : `Analyze all (${todo.length})`}</button> : undefined}
+        action={todo.length > 1 ? <AiButton busy={busyJobs.size > 0} busyLabel="Analyzing…" onClick={() => void analyze(todo)}>{`Analyze all (${todo.length})`}</AiButton> : undefined}
       />
       {error && <p role="alert" className="chip bad notice">{error}</p>}
       {!data.resume || data.resume.status !== "ready" ? (
@@ -46,7 +48,7 @@ export function Compare({ go }: { go: (v: string) => void }) {
             <Empty
               title={busyJobs.has(job!.id) ? "Analyzing…" : "Not analyzed yet"}
               text={busyJobs.has(job!.id) ? "Checking each requirement against your resume. This takes a few seconds." : "Check this role's requirements against your resume."}
-              action="Analyze this role" disabled={busyJobs.has(job!.id)} onClick={() => void analyze([job!.id])}
+              action="Analyze this role" busy={busyJobs.has(job!.id)} onClick={() => void analyze([job!.id])}
             />
           )}
         </>
@@ -55,9 +57,9 @@ export function Compare({ go }: { go: (v: string) => void }) {
   );
 }
 
-function Empty({ title, text, action, onClick, disabled }: { title: string; text: string; action: string; onClick: () => void; disabled?: boolean }) {
+function Empty({ title, text, action, onClick, busy }: { title: string; text: string; action: string; onClick: () => void; busy?: boolean }) {
   return (
-    <div className="dropzone"><h2>{title}</h2><p className="caption">{text}</p><button className="btn" disabled={disabled} onClick={onClick}>{action}</button></div>
+    <div className="dropzone"><h2>{title}</h2><p className="caption">{text}</p><AiButton busy={busy} busyLabel="Analyzing…" onClick={onClick}>{action}</AiButton></div>
   );
 }
 
@@ -73,7 +75,7 @@ function Report({ job, analysis, busy, onRerun }: { job: JobInfo; analysis: Anal
       {analysis.stale && (
         <div className="card tight row spread" role="status">
           <span>Your resume or this job changed after this analysis was run.</span>
-          <button className="btn" disabled={busy} onClick={onRerun}>{busy ? "Analyzing…" : "Re-run analysis"}</button>
+          <AiButton icon={RefreshCw} busy={busy} busyLabel="Analyzing…" onClick={onRerun}>Re-run analysis</AiButton>
         </div>
       )}
       <section className="grid cols-2">
@@ -90,7 +92,7 @@ function Report({ job, analysis, busy, onRerun }: { job: JobInfo; analysis: Anal
           <Component label="Experience" score={r.components.experience.score} detail={r.experience ? `${r.experience.candidateYears ?? "?"} yrs vs ${r.experience.requiredYears ?? "?"}+ asked` : undefined} />
           <Component label="Preferred skills" score={r.components.preferred.score} />
           <p className="caption">Score: required skills 60%, experience 30%, preferred 10%. Calculated from the verdicts, not guessed by the AI.</p>
-          {!analysis.stale && <div><button className="btn secondary" disabled={busy} onClick={onRerun}>{busy ? "Analyzing…" : "Re-run analysis"}</button></div>}
+          {!analysis.stale && <div><AiButton variant="secondary" icon={RefreshCw} busy={busy} busyLabel="Analyzing…" onClick={onRerun}>Re-run analysis</AiButton></div>}
         </div>
         <div className="card">
           <h2>Skill alignment</h2>

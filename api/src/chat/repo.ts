@@ -42,6 +42,11 @@ export class ChatRepo {
     return (r.rowCount ?? 0) > 0;
   }
 
+  async rename(userId: string, id: string, title: string): Promise<boolean> {
+    const r = await this.pool.query("UPDATE conversations SET title = $3 WHERE user_id = $1 AND id = $2", [userId, id, title]);
+    return (r.rowCount ?? 0) > 0;
+  }
+
   async setTitleIfEmpty(userId: string, id: string, title: string) {
     await this.pool.query("UPDATE conversations SET title = $3 WHERE user_id = $1 AND id = $2 AND title IS NULL", [userId, id, title]);
   }

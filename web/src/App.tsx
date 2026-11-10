@@ -5,6 +5,7 @@ import { Resumes } from "./views/Resumes";
 import { Jobs } from "./views/Jobs";
 import { Compare } from "./views/Compare";
 import { Assistant } from "./views/Assistant";
+import { MotionConfig } from "motion/react";
 import { Settings } from "./views/Settings";
 import { Interview } from "./views/Interview";
 
@@ -30,8 +31,8 @@ export function App() {
   const go = (id: string) => { location.hash = id; };
 
   return (
-    <>
-      <nav className="nav" aria-label="Main">
+    <MotionConfig reducedMotion="user">
+      <nav className={`nav ${view === "assistant" ? "on-dark" : ""}`} aria-label="Main">
         <div className="nav-inner">
           <a className="wordmark" href="#dashboard">career<span>IQ</span></a>
           <div className="tabs">
@@ -41,7 +42,7 @@ export function App() {
           </div>
         </div>
       </nav>
-      <main>
+      <main className={view === "assistant" ? "bleed" : undefined}>
         {view === "dashboard" && <Dashboard go={go} />}
         {view === "resume" && <Resumes />}
         {view === "jobs" && <Jobs />}
@@ -50,6 +51,6 @@ export function App() {
         {view === "interview" && <Interview go={go} />}
         {view === "settings" && <Settings go={go} />}
       </main>
-    </>
+    </MotionConfig>
   );
 }

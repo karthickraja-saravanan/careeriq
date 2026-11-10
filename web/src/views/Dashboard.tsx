@@ -1,3 +1,4 @@
+import { AiButton } from "../AiButton";
 import type { JobInfo } from "../api";
 import { PageHead, Ring, scoreTone } from "../ui";
 import { needsAnalysis, readyJobs, useCareerData } from "../useCareerData";
@@ -41,7 +42,7 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
       {resumeReady && todo.length > 0 && (
         <div className="card tight row spread">
           <span>{todo.length} {todo.length === 1 ? "role needs" : "roles need"} an analysis.</span>
-          <button className="btn" disabled={busyJobs.size > 0} onClick={() => void analyze(todo)}>{busyJobs.size ? "Analyzing…" : "Analyze all roles"}</button>
+          <AiButton busy={busyJobs.size > 0} busyLabel="Analyzing…" onClick={() => void analyze(todo)}>Analyze all roles</AiButton>
         </div>
       )}
 

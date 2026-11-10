@@ -27,6 +27,13 @@ export function chatRoutes(repo: ChatRepo, service: ChatService): Router {
     res.json({ messages: await repo.messages(req.userId, id) });
   });
 
+  router.patch("/conversations/:id", async (req, res) => {
+    const id = idParam.parse(req.params.id);
+    const { title } = z.object({ title: z.string().trim().min(1, "Give the chat a name").max(120) }).parse(req.body);
+    if (!(await repo.rename(req.userId, id, title))) throw new HttpError(404, "NOT_FOUND", "Conversation not found");
+    res.json((await repo.getConversation(req.userId, id))!);
+  });
+
   router.delete("/conversations/:id", async (req, res) => {
     if (!(await repo.deleteConversation(req.userId, idParam.parse(req.params.id)))) throw new HttpError(404, "NOT_FOUND", "Conversation not found");
     res.status(204).end();
