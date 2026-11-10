@@ -27,6 +27,7 @@ export interface JobSummary {
 }
 export interface ResumeSummary {
   id: string;
+  label: string;
   parsed: ResumeParsed | null;
   yearsExperience: number | null;
   version: number;
@@ -35,8 +36,9 @@ export interface ResumeSummary {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toResume = ({ owner_id, parsed, years_experience, version, user_edited, ...document }: any): ResumeSummary => ({
+const toResume = ({ owner_id, label, parsed, years_experience, version, user_edited, ...document }: any): ResumeSummary => ({
   id: owner_id,
+  label,
   parsed,
   yearsExperience: years_experience === null ? null : Number(years_experience),
   version,
@@ -54,17 +56,21 @@ export class DocumentRepo {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      // Serialize label allocation per user. Highest number + 1, so a deleted CV1 is never handed out again while CV2 exists.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [userId]);
+      const { rows: top } = await client.query<{ n: number }>("SELECT coalesce(max(substring(label from 3)::int), 0) AS n FROM resumes WHERE user_id = $1", [userId]);
+      const label = `CV${top[0]!.n + 1}`;
       const d = await client.query<{ id: string }>(
         `INSERT INTO documents (user_id, kind, original_filename, mime_type, storage_path, sha256, raw_text)
          VALUES ($1, 'resume', $2, $3, $4, $5, $6) RETURNING id`,
         [userId, doc.filename, doc.mime, doc.storagePath, doc.sha256, doc.rawText],
       );
       const r = await client.query<{ id: string }>(
-        "INSERT INTO resumes (user_id, document_id) VALUES ($1, $2) RETURNING id",
-        [userId, d.rows[0]!.id],
+        "INSERT INTO resumes (user_id, document_id, label) VALUES ($1, $2, $3) RETURNING id",
+        [userId, d.rows[0]!.id, label],
       );
       await client.query("COMMIT");
-      return { resumeId: r.rows[0]!.id, documentId: d.rows[0]!.id };
+      return { resumeId: r.rows[0]!.id, documentId: d.rows[0]!.id, label };
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -106,7 +112,7 @@ export class DocumentRepo {
 
   async listResumes(userId: string): Promise<ResumeSummary[]> {
     const { rows } = await this.pool.query(
-      `SELECT r.id AS owner_id, r.parsed, r.years_experience, r.version, r.user_edited, ${DOC_COLS} FROM resumes r JOIN documents d ON d.id = r.document_id
+      `SELECT r.id AS owner_id, r.label, r.parsed, r.years_experience, r.version, r.user_edited, ${DOC_COLS} FROM resumes r JOIN documents d ON d.id = r.document_id
        WHERE r.user_id = $1 ORDER BY d.created_at DESC`,
       [userId],
     );
@@ -115,7 +121,7 @@ export class DocumentRepo {
 
   async getResume(userId: string, id: string): Promise<ResumeSummary | null> {
     const { rows } = await this.pool.query(
-      `SELECT r.id AS owner_id, r.parsed, r.years_experience, r.version, r.user_edited, ${DOC_COLS} FROM resumes r JOIN documents d ON d.id = r.document_id
+      `SELECT r.id AS owner_id, r.label, r.parsed, r.years_experience, r.version, r.user_edited, ${DOC_COLS} FROM resumes r JOIN documents d ON d.id = r.document_id
        WHERE r.user_id = $1 AND r.id = $2`,
       [userId, id],
     );

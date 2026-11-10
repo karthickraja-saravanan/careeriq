@@ -3,7 +3,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SourceCitation } from "./SourceCitation";
 
-const CITATION_GROUP = /\[((?:R\d+|J\d+-\d+|S)(?:[,;\s]+(?:R\d+|J\d+-\d+|S))*)\]/gi;
+const CITATION_GROUP = /\[((?:R\d+|CV\d+-\d+|J\d+-\d+|S)(?:[,;\s]+(?:R\d+|CV\d+-\d+|J\d+-\d+|S))*)\]/gi;
 
 /** Turn "[R2, J1-3]" into one link per label ("cite:R2") so each can be rendered as its own badge. */
 export const linkCitations = (text: string) =>

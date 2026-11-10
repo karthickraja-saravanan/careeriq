@@ -149,3 +149,11 @@
 .topbar .icon-btn { color: #a1a1aa; }
 .topbar-title { font-weight: 600; font-size: 15px; }
 @media (max-width: 767px) { .app { flex-direction: column; } }
+
+/* resume mentions */
+.composer-anchor { position: relative; }
+.mention { display: inline-block; padding: 0 7px; border-radius: 6px; background: rgba(125, 160, 255, 0.18); color: #9db8ff; font-size: 0.86em; font-weight: 600; letter-spacing: 0.02em; line-height: 1.6; }
+.mention-list { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); margin: 0; padding: 6px; list-style: none; background: #2a2a2a; border: 1px solid var(--g-border, #3a3a3a); border-radius: 16px; box-shadow: 0 12px 32px rgba(0,0,0,.45); z-index: 5; max-height: 240px; overflow: auto; }
+.mention-list button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; color: var(--g-text, #f5f5f5); font: 14px var(--font); padding: 9px 10px; border-radius: 10px; cursor: pointer; }
+.mention-list button.on { background: rgba(255,255,255,.08); }
+.mention-name { color: #a1a1aa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

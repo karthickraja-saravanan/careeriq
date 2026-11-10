@@ -20,11 +20,11 @@ export const estimateTokens = (s: string) => Math.ceil(s.length / 4);
 const jobName = (j: JobInfo) => `${j.label}${j.title ? ` · ${j.title}` : ""}${j.company ? ` at ${j.company}` : ""}`;
 
 /** Short plain-text summary of a stored analysis, so chat answers agree with the Compare page. */
-export function analysisSummary(a: AnalysisRow, job: JobInfo): string {
+export function analysisSummary(a: AnalysisRow, job: JobInfo, resumeLabel?: string): string {
   const r = a.report;
   const list = (v: string) => r.requirements.filter((x) => x.verdict === v).map((x) => x.requirement).join(", ") || "none";
   return [
-    `${jobName(job)}: match score ${a.score}/100.`,
+    `${resumeLabel ? `${resumeLabel} vs ` : ""}${jobName(job)}: match score ${a.score}/100.`,
     `Required/preferred skills met: ${list("met")}.`,
     `Partial: ${list("partial")}.`,
     `Missing: ${list("missing")}.`,
@@ -44,7 +44,7 @@ export interface BuiltContext {
  * Lay out retrieved chunks under a token budget. Chunks are taken in rounds across documents
  * (best resume chunk, best chunk of each job, next best, ...), so trimming never leaves one side with no evidence.
  */
-export function buildContext(hits: SearchHit[], jobs: JobInfo[], analyses: { analysis: AnalysisRow; job: JobInfo }[], budgetTokens: number): BuiltContext {
+export function buildContext(hits: SearchHit[], jobs: JobInfo[], analyses: { analysis: AnalysisRow; job: JobInfo; resumeLabel?: string }[], budgetTokens: number, resumeLabels?: Map<string, string>): BuiltContext {
   const jobById = new Map(jobs.map((j) => [j.id, j]));
   const groups = new Map<string, SearchHit[]>();
   for (const h of hits) groups.set(h.ownerId, [...(groups.get(h.ownerId) ?? []), h]);
@@ -54,7 +54,7 @@ export function buildContext(hits: SearchHit[], jobs: JobInfo[], analyses: { ana
   let used = 0;
   let dropped = 0;
 
-  const summaries = analyses.map(({ analysis, job }) => analysisSummary(analysis, job));
+  const summaries = analyses.map(({ analysis, job, resumeLabel }) => analysisSummary(analysis, job, resumeLabel));
   if (summaries.length) {
     const content = summaries.join("\n");
     sources.push({ cite: "S", title: "Stored match analysis", section: "Match analysis", content });
@@ -71,7 +71,7 @@ export function buildContext(hits: SearchHit[], jobs: JobInfo[], analyses: { ana
       if (used + cost > budgetTokens) { dropped++; continue; }
       used += cost;
       const job = hit.ownerType === "job" ? jobById.get(hit.ownerId) : undefined;
-      sources.push({ cite: hit.cite, title: hit.ownerType === "resume" ? "Your resume" : job ? jobName(job) : "Job", section: hit.section, content: hit.content });
+      sources.push({ cite: hit.cite, title: hit.ownerType === "resume" ? (resumeLabels?.get(hit.ownerId) ? `Resume ${resumeLabels.get(hit.ownerId)}` : "Your resume") : job ? jobName(job) : "Job", section: hit.section, content: hit.content });
     }
   }
 

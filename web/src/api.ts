@@ -31,6 +31,8 @@ export interface InterviewPrep {
 }
 
 export interface ResumeInfo extends DocInfo {
+  /** Short badge such as CV1. Type @CV1 in the assistant to include this resume. */
+  label: string;
   parsed: ResumeParsed | null;
   yearsExperience: number | null;
   userEdited: boolean;

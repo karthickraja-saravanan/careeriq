@@ -94,6 +94,8 @@ export async function hybridSearch(
 export interface BalancedOptions {
   /** Restrict to these job ids; default is all of the user's jobs. */
   jobIds?: string[];
+  /** Restrict to these resumes; default is the newest one. */
+  resumeIds?: string[];
   resumeLimit?: number;
   perJobLimit?: number;
 }
@@ -111,10 +113,18 @@ export async function retrieveBalanced(
 ): Promise<SearchHit[]> {
   const jobIds =
     opts.jobIds ?? (await pool.query<{ id: string }>("SELECT id FROM jobs WHERE user_id = $1 ORDER BY created_at", [userId])).rows.map((r) => r.id);
-  const resumeId = (await pool.query<{ id: string }>("SELECT id FROM resumes WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1", [userId])).rows[0]?.id;
+  // Only the user's own resumes can be searched, whatever ids were asked for.
+  const resumes = opts.resumeIds?.length
+    ? (await pool.query<{ id: string; label: string }>("SELECT id, label FROM resumes WHERE user_id = $1 AND id = ANY($2::uuid[]) ORDER BY created_at", [userId, opts.resumeIds])).rows
+    : (await pool.query<{ id: string; label: string }>("SELECT id, label FROM resumes WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1", [userId])).rows;
+  // With several resumes "R3" would be ambiguous, so passages are cited as "CV2-3" (resume CV2, passage 3).
+  const qualify = resumes.length > 1;
 
   const groups = await Promise.all([
-    resumeId ? hybridSearch(pool, embedder, userId, question, { ownerType: "resume", ownerId: resumeId }, opts.resumeLimit ?? 4) : [],
+    ...resumes.map(async (r) => {
+      const found = await hybridSearch(pool, embedder, userId, question, { ownerType: "resume", ownerId: r.id }, opts.resumeLimit ?? 4);
+      return qualify ? found.map((h) => ({ ...h, cite: `${r.label}-${h.cite.slice(1)}` })) : found;
+    }),
     ...jobIds.map((id) => hybridSearch(pool, embedder, userId, question, { ownerType: "job", ownerId: id }, opts.perJobLimit ?? 4)),
   ]);
   return groups.flat();

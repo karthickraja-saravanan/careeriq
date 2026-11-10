@@ -1,4 +1,4 @@
-const LABEL = /^(?:R\d+|J\d+-\d+|S)$/i;
+const LABEL = /^(?:R\d+|CV\d+-\d+|J\d+-\d+|S)$/i;
 
 export interface SanitizedAnswer {
   text: string;

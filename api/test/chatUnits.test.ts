@@ -57,3 +57,23 @@ describe("buildContext", () => {
     expect(c.dropped).toBe(2);
   });
 });
+
+import { resolveResumeMentions } from "../src/chat/resumeRefs.js";
+
+describe("resolveResumeMentions", () => {
+  const resumes = [{ id: "a", label: "CV1" }, { id: "b", label: "CV2" }];
+  it("finds @CV and @R mentions case-insensitively and normalises them", () => {
+    const r = resolveResumeMentions("Use @cv2 and @R1, then @CV2 again", resumes);
+    expect(r.ids).toEqual(["b", "a"]);
+    expect(r.unknown).toEqual([]);
+    expect(r.text).toBe("Use CV2 and CV1, then CV2 again");
+  });
+  it("reports unknown labels and ignores look-alikes", () => {
+    const r = resolveResumeMentions("@CV3 please, email me@R1.com, CV1 alone", resumes);
+    expect(r.ids).toEqual([]);
+    expect(r.unknown).toEqual(["CV3"]);
+  });
+  it("leaves questions without mentions untouched", () => {
+    expect(resolveResumeMentions("What am I missing?", resumes)).toEqual({ ids: [], unknown: [], text: "What am I missing?" });
+  });
+});

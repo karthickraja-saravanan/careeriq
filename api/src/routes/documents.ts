@@ -34,7 +34,7 @@ const present = (d: { id: string; kind: string; status: string; error: string | 
 });
 
 const presentResume = (r: ResumeSummary, withText: boolean) => ({
-  id: r.id, ...present(r.document, withText), parsed: r.parsed, yearsExperience: r.yearsExperience, userEdited: r.userEdited,
+  id: r.id, label: r.label, ...present(r.document, withText), parsed: r.parsed, yearsExperience: r.yearsExperience, userEdited: r.userEdited,
 });
 const presentJob = (j: JobSummary, withText: boolean) => ({
   id: j.id, label: j.label, title: j.title, company: j.company, ...present(j.document, withText), parsed: j.parsed, userEdited: j.userEdited,

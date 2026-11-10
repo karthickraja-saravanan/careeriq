@@ -79,7 +79,7 @@ function ResumeCard({ resume: current, defaultOpen, onChanged }: { resume: Resum
         <button type="button" className="resume-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           <motion.span className="chev" animate={{ rotate: open ? 0 : -90 }} transition={{ duration: 0.2 }} aria-hidden="true"><ChevronDown size={18} /></motion.span>
           <span className="resume-id">
-            <span className="resume-name"><FileText size={16} aria-hidden="true" /> {name}</span>
+            <span className="resume-name"><FileText size={16} aria-hidden="true" /> {name} <span className="cv-badge" title={`Type @${current.label} in the Assistant to chat with this resume`}>{current.label}</span></span>
             <span className="caption">{current.filename ?? "Sample data"} · uploaded {new Date(current.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span>
           </span>
         </button>

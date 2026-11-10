@@ -62,6 +62,75 @@ describe.skipIf(!TEST_DB_URL)("chat (integration)", () => {
     expect(conv[0].title).toBe("Which skills do I have?");
   });
 
+  describe("resume mentions", () => {
+    const uploadResume = async () => {
+      await fetch(`${t.base}/resumes`, { method: "POST", body: form({ name: "cv.docx", data: readFileSync(samples("resume-priya-nair.docx")) }) });
+      await t.queue.drain();
+    };
+    const labels = async () => ((await (await fetch(`${t.base}/resumes`)).json()).resumes as { label: string; id: string }[]);
+
+    it("numbers resumes CV1, CV2 and never reuses a number that is still taken", async () => {
+      await uploadResume(); await uploadResume();
+      const first = await labels();
+      expect(first.map((r) => r.label).sort()).toEqual(["CV1", "CV2"]);
+      await fetch(`${t.base}/resumes/${first.find((r) => r.label === "CV1")!.id}`, { method: "DELETE" });
+      await uploadResume();
+      expect((await labels()).map((r) => r.label).sort()).toEqual(["CV2", "CV3"]);
+    });
+
+    it("searches only the mentioned resume and qualifies citations when several are named", async () => {
+      await seedDocs(); await uploadResume();
+      const id = await newConversation();
+
+      t.llm!.streams = ["From the first one."];
+      const one = await readSse(await ask(id, "@CV1 what are my skills?"));
+      expect(one[0]!.data.resumeIds).toHaveLength(1);
+      const single = t.llm!.streamCalls.at(-1)!.messages.at(-1)!.content;
+      expect(single).toContain("Question: CV1 what are my skills?");
+      expect(single).toMatch(/\[R\d+\]/);
+      expect(single).not.toMatch(/\[CV\d+-\d+\]/);
+
+      t.llm!.streams = ["Both."];
+      const both = await readSse(await ask(id, "Compare @CV1 and @r2 for me"));
+      expect(both[0]!.data.resumeIds).toHaveLength(2);
+      const multi = t.llm!.streamCalls.at(-1)!.messages.at(-1)!.content;
+      expect(multi).toMatch(/\[CV1-\d+\] \(Resume CV1/);
+      expect(multi).toMatch(/\[CV2-\d+\] \(Resume CV2/);
+      expect(multi).toContain("Question: Compare CV1 and CV2 for me");
+    });
+
+    it("keeps valid CV citations in the answer and drops ones that were not retrieved", async () => {
+      await seedDocs(); await uploadResume();
+      const id = await newConversation();
+      t.llm!.streams = ["Strong TypeScript [CV1-2]. Bad ref [CV9-1]."];
+      const events = await readSse(await ask(id, "@CV1 @CV2 which is better?"));
+      const done = events.at(-1)!;
+      expect(done.data.content).toBe("Strong TypeScript [CV1-2]. Bad ref.");
+      expect(done.data.citations.map((c: { cite: string }) => c.cite)).toEqual(["CV1-2"]);
+    });
+
+    it("rejects a resume that does not exist without storing the message", async () => {
+      await seedDocs();
+      const id = await newConversation();
+      const res = await ask(id, "@CV7 summarise this");
+      expect(res.status).toBe(400);
+      expect((await res.json()).error.code).toBe("UNKNOWN_RESUME");
+      expect(t.llm!.streamCalls).toHaveLength(0);
+      expect((await (await fetch(`${t.base}/conversations/${id}/messages`)).json()).messages).toEqual([]);
+    });
+
+    it("cannot reach another user's resume by label", async () => {
+      await seedDocs();
+      await t.pool.query("INSERT INTO users (id, email, display_name) VALUES ('00000000-0000-0000-0000-000000000002', 'other@x.test', 'Other') ON CONFLICT DO NOTHING");
+      const d = await t.pool.query("INSERT INTO documents (user_id, kind, status, raw_text) VALUES ('00000000-0000-0000-0000-000000000002', 'resume', 'ready', 'secret') RETURNING id");
+      await t.pool.query("INSERT INTO resumes (user_id, document_id, label) VALUES ('00000000-0000-0000-0000-000000000002', $1, 'CV2')", [d.rows[0].id]);
+      const id = await newConversation();
+      const res = await ask(id, "@CV2 show it");
+      expect(res.status).toBe(400); // the demo user only has CV1
+      await t.pool.query("DELETE FROM users WHERE id = '00000000-0000-0000-0000-000000000002'");
+    });
+  });
+
   it("answers without calling the model when there are no documents", async () => {
     const id = await newConversation();
     const events = await readSse(await ask(id, "Am I a fit?"));

@@ -294,3 +294,6 @@ main.bleed { max-width: none; padding: 0; gap: 0; height: 100%; }
 .tab:hover { color: var(--ink, inherit); }
 .tab.active { color: var(--ink, inherit); border-bottom-color: currentColor; }
 .tab:focus-visible { outline: 2px solid var(--accent, #5b8def); outline-offset: -2px; border-radius: 6px; }
+
+/* Resume badge */
+.cv-badge { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; background: var(--hairline); color: var(--ink); vertical-align: middle; }

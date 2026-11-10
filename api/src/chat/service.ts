@@ -9,6 +9,7 @@ import type { AnalysisService } from "../analysis/analyze.js";
 import { sanitizeCitations } from "./citations.js";
 import { buildContext, estimateTokens, type ContextSource } from "./context.js";
 import { resolveJobRefs } from "./jobRefs.js";
+import { resolveResumeMentions } from "./resumeRefs.js";
 import { CHAT_SYSTEM, NO_DOCUMENTS_REPLY, REWRITE_SYSTEM, buildChatUser, buildRewriteUser } from "./prompt.js";
 import type { ChatRepo } from "./repo.js";
 
@@ -20,7 +21,7 @@ export type ChatEvent =
   | { type: "done"; messageId: string; content: string; citations: ContextSource[]; grounded: boolean; latencyMs: Record<string, number> };
 
 export interface ChatStart {
-  meta: { rewritten: string | null; jobIds: string[] };
+  meta: { rewritten: string | null; jobIds: string[]; resumeIds: string[] };
   events: AsyncGenerator<ChatEvent>;
 }
 
@@ -56,13 +57,24 @@ export class ChatService {
     const llm = this.llm;
     if (!(await this.repo.getConversation(userId, conversationId))) throw new HttpError(404, "NOT_FOUND", "Conversation not found");
 
+    // "@CV1" names a resume. Unknown ones are rejected before anything is stored or sent to the model.
+    const allResumes = await this.docs.listResumes(userId);
+    const mentions = resolveResumeMentions(question, allResumes.map((r) => ({ id: r.id, label: r.label })));
+    if (mentions.unknown.length) {
+      throw new HttpError(400, "UNKNOWN_RESUME", `You don't have ${mentions.unknown.join(", ")}. Type @ to pick one of your resumes.`);
+    }
+    const unready = allResumes.filter((r) => mentions.ids.includes(r.id) && r.document.status !== "ready");
+    if (unready.length) {
+      throw new HttpError(409, "RESUME_NOT_READY", `${unready.map((r) => r.label).join(", ")} is still being processed. Try again in a moment.`);
+    }
+
     const t0 = Date.now();
     const history = (await this.repo.messages(userId, conversationId)).slice(-HISTORY_TURNS);
     await this.repo.addMessage(userId, conversationId, { role: "user", content: question });
     await this.repo.setTitleIfEmpty(userId, conversationId, question.length > 60 ? `${question.slice(0, 57)}...` : question);
 
-    const rewritten = await this.rewrite(userId, history, question);
-    const standalone = rewritten ?? question;
+    const rewritten = await this.rewrite(userId, history, mentions.text);
+    const standalone = rewritten ?? mentions.text;
     const tRewrite = Date.now();
 
     const jobs = (await this.docs.listJobs(userId)).filter((j) => j.document.status === "ready");
@@ -71,17 +83,24 @@ export class ChatService {
     const refs = [...new Set([...resolveJobRefs(question, jobInfos), ...resolveJobRefs(standalone, jobInfos)])];
     const jobIds = refs.length ? refs : jobInfos.map((j) => j.id);
 
-    const hits = await retrieveBalanced(this.pool, this.embedder, userId, standalone, { jobIds, resumeLimit: 5, perJobLimit: 4 });
+    // No mention means the newest resume, as before. Mentioned resumes share the resume quota between them.
+    const resumeIds = mentions.ids.length ? mentions.ids : allResumes[0] ? [allResumes[0].id] : [];
+    const hits = await retrieveBalanced(this.pool, this.embedder, userId, standalone, {
+      jobIds,
+      resumeIds,
+      resumeLimit: resumeIds.length > 1 ? 4 : 5,
+      perJobLimit: 4,
+    });
     const tRetrieve = Date.now();
 
-    // Chat answers from the newest resume (the one retrieval searches), so only its stored analyses are quoted.
-    const newestResume = (await this.docs.listResumes(userId))[0];
-    const stored = (await this.analyses.list(userId)).filter((a) => !a.stale && a.resumeId === newestResume?.id && jobIds.includes(a.jobId));
+    // Only stored analyses of the resumes being searched are quoted.
+    const stored = (await this.analyses.list(userId)).filter((a) => !a.stale && resumeIds.includes(a.resumeId) && jobIds.includes(a.jobId));
+    const resumeLabels = resumeIds.length > 1 ? new Map(allResumes.map((r) => [r.id, r.label])) : undefined;
     const withJobs = stored.flatMap((analysis) => {
       const job = jobInfos.find((j) => j.id === analysis.jobId);
-      return job ? [{ analysis, job }] : [];
+      return job ? [{ analysis, job, resumeLabel: resumeLabels?.get(analysis.resumeId) }] : [];
     });
-    const context = buildContext(hits, jobInfos, withJobs, CONTEXT_BUDGET_TOKENS);
+    const context = buildContext(hits, jobInfos, withJobs, CONTEXT_BUDGET_TOKENS, resumeLabels);
     const chunkIds = hits.map((h) => h.chunkId);
     const allowed = new Set(context.sources.map((s) => s.cite.toUpperCase()));
     const timings = { rewrite: tRewrite - t0, retrieve: tRetrieve - tRewrite };
@@ -102,7 +121,7 @@ export class ChatService {
       return { type: "done", messageId, content: clean.text, citations, grounded: citations.length > 0, latencyMs };
     };
 
-    const meta = { rewritten, jobIds: refs };
+    const meta = { rewritten, jobIds: refs, resumeIds: mentions.ids };
 
     if (context.sources.length === 0) {
       const events = async function* (): AsyncGenerator<ChatEvent> {

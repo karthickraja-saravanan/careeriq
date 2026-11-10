@@ -10,6 +10,7 @@ export function Assistant({ go, chat }: { go: (v: string) => void; chat: ReturnT
   const { data } = useCareerData();
   const resumeReady = !!data?.resume && data.resume.status === "ready";
   const ready = resumeReady && !!data && readyJobs(data).length > 0;
+  const mentionable = (data?.resumes ?? []).filter((r) => r.status === "ready").slice().sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true })).map((r) => ({ label: r.label, name: r.parsed?.name ?? r.filename ?? "Resume" }));
   const title = chat.conversations.find((c) => c.id === chat.activeId)?.title ?? null;
   const empty = chat.messages.length === 0 && !chat.busy;
 
@@ -41,7 +42,7 @@ export function Assistant({ go, chat }: { go: (v: string) => void; chat: ReturnT
               {chat.error} <button type="button" className="link" onClick={chat.clearError}>Dismiss</button>
             </p>
           )}
-          <ChatInput busy={chat.busy} disabled={!ready} onSend={chat.send} onStop={chat.stop} />
+          <ChatInput busy={chat.busy} disabled={!ready} resumes={mentionable} onSend={chat.send} onStop={chat.stop} />
         </div>
       </section>
     </div>
