@@ -59,9 +59,30 @@ function UsageCard({ refreshKey }: { refreshKey: number }) {
   );
 }
 
+type Tab = "sample" | "usage" | "delete";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "sample", label: "Sample data" },
+  { id: "usage", label: "AI usage" },
+  { id: "delete", label: "Delete data" },
+];
+
 export function Settings({ go, onReset }: { go: (v: string) => void; onReset: () => void }) {
   const { data } = useCareerData();
   const [usageKey, setUsageKey] = useState(0);
+  const [tab, setTab] = useState<Tab>(() => {
+    try { const t = sessionStorage.getItem("settings-tab"); return TABS.some((x) => x.id === t) ? (t as Tab) : "sample"; } catch { return "sample"; }
+  });
+  const pick = (t: Tab) => {
+    setTab(t);
+    try { sessionStorage.setItem("settings-tab", t); } catch { /* optional */ }
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const i = TABS.findIndex((x) => x.id === tab);
+    const next = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length]!;
+    pick(next.id);
+    document.getElementById(`tab-${next.id}`)?.focus();
+  };
   const [busy, setBusy] = useState<"seed" | "clear" | null>(null);
   const [message, setMessage] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const hasData = !!data && (!!data.resume || data.jobs.length > 0);
@@ -94,23 +115,28 @@ export function Settings({ go, onReset }: { go: (v: string) => void; onReset: ()
     <>
       <PageHead title="Settings" lead="Manage the data in this demo account." />
       {message && <p role="status" className={`chip ${message.tone} notice`}>{message.text}</p>}
-      <div className="stack">
-        <section className="card" aria-labelledby="seed-h">
+      <div className="tabs" role="tablist" aria-label="Settings sections" onKeyDown={onKey}>
+        {TABS.map((t) => (
+          <button key={t.id} id={`tab-${t.id}`} role="tab" type="button" aria-selected={tab === t.id} aria-controls="settings-panel" tabIndex={tab === t.id ? 0 : -1} className={`tab${tab === t.id ? " active" : ""}`} onClick={() => pick(t.id)}>{t.label}</button>
+        ))}
+      </div>
+      <div className="stack" id="settings-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+        {tab === "sample" && <section className="card" aria-labelledby="seed-h">
           <h2 id="seed-h">Sample data</h2>
           <p className="muted">Load a sample resume (a backend engineer with five years of experience) and three job descriptions, so you can try every page without uploading anything. Your current data is replaced.</p>
           <div className="row">
             <AiButton busy={busy === "seed"} disabled={busy !== null} busyLabel="Loading…" onClick={() => void run("seed")}>Load sample data</AiButton>
             {message?.tone === "good" && busy === null && <button className="btn secondary" type="button" onClick={() => go("dashboard")}>Go to dashboard</button>}
           </div>
-        </section>
-        <section className="card" aria-labelledby="clear-h">
+        </section>}
+        {tab === "delete" && <section className="card" aria-labelledby="clear-h">
           <h2 id="clear-h">Delete my data</h2>
           <p className="muted">Removes your resume, jobs, comparisons and chat history. Use this before adding your own documents or to start over.</p>
           <div className="row">
             <button className="btn secondary" type="button" disabled={busy !== null} onClick={() => void run("clear")}>{busy === "clear" ? "Deleting…" : "Delete all my data"}</button>
           </div>
-        </section>
-        <UsageCard refreshKey={usageKey} />
+        </section>}
+        {tab === "usage" && <UsageCard refreshKey={usageKey} />}
       </div>
     </>
   );

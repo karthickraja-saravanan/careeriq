@@ -287,3 +287,10 @@ main.bleed { max-width: none; padding: 0; gap: 0; height: 100%; }
 .usage-table th, .usage-table td { text-align: left; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
 .usage-table th { font-size: 12px; font-weight: 500; color: var(--muted, #6b7280); }
 .usage-table th:not(:first-child), .usage-table td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Settings tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--hairline); margin-bottom: 20px; overflow-x: auto; }
+.tab { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 10px 14px; font: inherit; font-weight: 500; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.tab:hover { color: var(--ink, inherit); }
+.tab.active { color: var(--ink, inherit); border-bottom-color: currentColor; }
+.tab:focus-visible { outline: 2px solid var(--accent, #5b8def); outline-offset: -2px; border-radius: 6px; }
