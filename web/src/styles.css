@@ -169,7 +169,38 @@ main.bleed { max-width: none; padding: 0; gap: 0; height: 100%; }
 .cmp-text strong { color: var(--ink-strong); overflow-wrap: anywhere; }
 .cmp-detail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .cmp-head p { overflow-wrap: anywhere; }
-.compare-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; padding-top: 4px; }
 .compare-pick { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .compare-pick .select { max-width: 260px; }
 @media (max-width: 860px) { .cmp-layout { grid-template-columns: 1fr; } .cmp-list { position: static; max-height: 320px; } }
+
+/* job card */
+.job-card { gap: 14px; transition: border-color 0.15s, box-shadow 0.15s; }
+.job-card:hover { border-color: var(--hairline-strong); }
+.job-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.job-meta { display: flex; align-items: center; gap: 10px; }
+.card-actions { display: flex; gap: 2px; margin-right: -6px; }
+.icon-action { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; transition: background 0.15s, color 0.15s, transform 0.15s; }
+.icon-action:hover:not(:disabled) { background: var(--cream); color: var(--ink-strong); }
+.icon-action:active:not(:disabled) { transform: scale(0.92); }
+.icon-action.danger:hover:not(:disabled) { background: var(--bad-soft); color: var(--bad); }
+.icon-action:disabled { opacity: 0.45; cursor: not-allowed; }
+.icon-action.spin svg { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.job-title { display: flex; flex-direction: column; gap: 4px; }
+.job-title h2 { font-size: 20px; letter-spacing: -0.2px; }
+.job-title .caption { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.job-skills { display: flex; flex-direction: column; gap: 10px; }
+.chip.more { border: 1px dashed var(--hairline-strong); background: transparent; color: var(--muted); cursor: pointer; }
+.chip.more:hover { color: var(--ink); border-color: var(--muted); }
+.nice { font-size: 13px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.nice span { font-weight: 500; color: var(--ink); margin-right: 4px; }
+.job-results { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.chip.result { border: 1px solid var(--hairline); background: transparent; cursor: pointer; gap: 6px; height: 28px; }
+.chip.result span { color: var(--muted); }
+.chip.result:hover { background: var(--cream); }
+.job-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 8px; }
+.compare-bar { display: flex; align-items: flex-end; gap: 10px; }
+.compare-bar .compare-pick { flex: 1; }
+.compare-bar .select { max-width: none; width: 100%; }
+@media (max-width: 420px) { .compare-bar { flex-direction: column; align-items: stretch; } }
+@media (prefers-reduced-motion: reduce) { .icon-action.spin svg { animation: none; } }
