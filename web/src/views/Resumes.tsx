@@ -1,4 +1,5 @@
-import { RefreshCw } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { Briefcase, ListChecks, ChevronDown, FileText, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { AiButton } from "../AiButton";
 import { useRef, useState } from "react";
 import { api, isPending, type DocInfo, type ResumeInfo, type ResumeParsed } from "../api";
@@ -39,16 +40,20 @@ export function Resumes() {
         <button className="btn" disabled={busy} onClick={() => input.current?.click()}>{busy ? "Uploading…" : "Choose files"}</button>
       </div>
       {(message || error) && <p role="alert" className="chip bad notice">{message ?? error}</p>}
-      {items?.map((r) => <ResumeCard key={r.id} resume={r} onChanged={refresh} />)}
+      {items?.map((r, i) => <ResumeCard key={r.id} resume={r} defaultOpen={i === 0} onChanged={refresh} />)}
     </>
   );
 }
 
-function ResumeCard({ resume: current, onChanged }: { resume: ResumeInfo; onChanged: () => Promise<void> }) {
+const PREVIEW_SKILLS = 6;
+
+function ResumeCard({ resume: current, defaultOpen, onChanged }: { resume: ResumeInfo; defaultOpen: boolean; onChanged: () => Promise<void> }) {
+  const [open, setOpen] = useState(defaultOpen);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [rawText, setRawText] = useState<string | null>(null);
+  const p = current.parsed;
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
@@ -67,32 +72,64 @@ function ResumeCard({ resume: current, onChanged }: { resume: ResumeInfo; onChan
   const remove = () => {
     if (window.confirm("Delete this resume and its comparisons? This cannot be undone.")) void run(() => api.deleteResume(current.id));
   };
+  const name = p?.name ?? current.filename ?? "Resume";
 
   return (
-    <section className="card">
-      <div className="row spread">
-        <div><h2>{current.parsed?.name ?? current.filename ?? "Resume"}</h2><p className="caption">{current.filename} · uploaded {new Date(current.createdAt).toLocaleString()}</p></div>
-        <div className="row">
+    <section className="card resume-card">
+      <header className="resume-head">
+        <button type="button" className="resume-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          <motion.span className="chev" animate={{ rotate: open ? 0 : -90 }} transition={{ duration: 0.2 }} aria-hidden="true"><ChevronDown size={18} /></motion.span>
+          <span className="resume-id">
+            <span className="resume-name"><FileText size={16} aria-hidden="true" /> {name}</span>
+            <span className="caption">{current.filename ?? "Sample data"} · uploaded {new Date(current.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span>
+          </span>
+        </button>
+        <div className="card-actions">
           <StatusChip d={current} edited={current.userEdited} />
-          {current.status === "ready" && !editing && <button className="btn secondary" onClick={() => setEditing(true)}>Edit</button>}
-          {(current.status === "ready" || current.status === "failed") && <AiButton variant="secondary" icon={RefreshCw} busy={busy} busyLabel="Reparsing…" onClick={() => void run(() => api.reparseResume(current.id))}>Reparse</AiButton>}
-          <button className="btn secondary" disabled={busy} onClick={remove}>Delete</button>
+          {current.status === "ready" && !editing && <button type="button" className="icon-action" aria-label={`Edit ${name}`} title="Edit" onClick={() => { setOpen(true); setEditing(true); }}><Pencil size={16} /></button>}
+          {(current.status === "ready" || current.status === "failed") && (
+            <button type="button" className={`icon-action ${busy ? "spin" : ""}`} aria-label={`Reparse ${name}`} title="Reparse with AI" disabled={busy} onClick={() => void run(() => api.reparseResume(current.id))}><RefreshCw size={16} /></button>
+          )}
+          <button type="button" className="icon-action danger" aria-label={`Delete ${name}`} title="Delete" disabled={busy} onClick={remove}><Trash2 size={16} /></button>
         </div>
-      </div>
+      </header>
+
       {message && <p role="alert" className="chip bad notice">{message}</p>}
       {current.status === "failed" && <p role="alert" className="chip bad notice">{current.error}</p>}
       {isPending(current.status) && <p className="caption">Reading your resume. This takes a few seconds.</p>}
-      {current.parsed && (editing
-        ? <ResumeEditor value={current.parsed} saving={busy} onSave={save} onCancel={() => setEditing(false)} />
-        : <ResumeView r={current} />)}
-      {current.status !== "failed" && !isPending(current.status) && (
-        <div>
-          <button className="btn secondary" onClick={async () => setRawText(rawText === null ? ((await api.getResume(current.id)).text ?? "") : null)}>
-            {rawText === null ? "Show extracted text" : "Hide extracted text"}
-          </button>
-          {rawText !== null && <pre className="extract" style={{ marginTop: 12 }}>{rawText}</pre>}
+
+      {p && (
+        <div className="resume-stats">
+          <span><Briefcase size={14} aria-hidden="true" /> {p.experience.length} {p.experience.length === 1 ? "role" : "roles"}{current.yearsExperience !== null ? ` · about ${current.yearsExperience} years` : ""}</span>
+          <span><ListChecks size={14} aria-hidden="true" /> {p.skills.length} skills</span>
+          {p.headline && <span className="headline">{p.headline}</span>}
         </div>
       )}
+
+      {p && !open && (
+        <div className="chips">
+          {p.skills.slice(0, PREVIEW_SKILLS).map((sk) => <span className="chip" key={sk}>{sk}</span>)}
+          {p.skills.length > PREVIEW_SKILLS && <button type="button" className="chip more" onClick={() => setOpen(true)}>+{p.skills.length - PREVIEW_SKILLS} more</button>}
+        </div>
+      )}
+
+      <AnimatePresence initial={false}>
+        {open && p && (
+          <motion.div key="body" className="resume-body" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: "easeOut" }}>
+            {editing
+              ? <ResumeEditor value={p} saving={busy} onSave={save} onCancel={() => setEditing(false)} />
+              : <ResumeView r={current} />}
+            {!editing && (
+              <div>
+                <button className="btn secondary" onClick={async () => setRawText(rawText === null ? ((await api.getResume(current.id)).text ?? "") : null)}>
+                  {rawText === null ? "Show extracted text" : "Hide extracted text"}
+                </button>
+                {rawText !== null && <pre className="extract" style={{ marginTop: 12 }}>{rawText}</pre>}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
