@@ -24,6 +24,12 @@ export interface MatchReport {
 }
 export interface AnalysisInfo { id: string; jobId: string; score: number; report: MatchReport; createdAt: string; stale: boolean }
 
+export interface InterviewQuestion { question: string; kind: "experience" | "gap" | "technical" | "behavioral"; why: string; structure: string; basedOn: string[] }
+export interface InterviewPrep {
+  id: string; jobId: string; createdAt: string; stale: boolean;
+  report: { questions: InterviewQuestion[]; topics: { requirement: string; verdict: "missing" | "partial" }[]; sources: Record<string, { section: string; content: string }> };
+}
+
 export interface ResumeInfo extends DocInfo {
   parsed: ResumeParsed | null;
   yearsExperience: number | null;
@@ -121,6 +127,8 @@ export async function streamAnswer(conversationId: string, content: string, h: S
 }
 
 export const api = {
+  listInterviewPreps: () => request<{ preps: InterviewPrep[] }>("/interview-preps").then((r) => r.preps),
+  generateInterviewPrep: (jobId: string) => request<InterviewPrep>("/interview-preps", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ jobId }) }),
   seedDemoData: () => request<{ resumes: number; jobs: number }>("/settings/seed-demo-data", { method: "POST" }),
   clearAllData: () => request<void>("/settings/data", { method: "DELETE" }),
   listConversations: () => request<{ conversations: Conversation[] }>("/conversations").then((r) => r.conversations),
