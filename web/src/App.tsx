@@ -29,12 +29,18 @@ export function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   const go = (id: string) => { location.hash = id; };
-  const chat = useChat(); // lives here so the sidebar history and the Assistant page share it, and a running answer survives navigation
+  const chat = useChat();
+  // A question from another page (e.g. the Dashboard): open a fresh chat on the Assistant page, then send it once that chat is ready.
+  const [pendingAsk, setPendingAsk] = useState<string | null>(null);
+  const ask = (question: string) => { chat.select(null); setPendingAsk(question); go("assistant"); };
+  useEffect(() => {
+    if (pendingAsk && chat.activeId === null && !chat.busy) { const q = pendingAsk; setPendingAsk(null); void chat.send(q); }
+  }, [pendingAsk, chat.activeId, chat.busy, chat.send]); // lives here so the sidebar history and the Assistant page share it, and a running answer survives navigation
 
   return (
     <MotionConfig reducedMotion="user">
       <AppShell view={view} go={go} chat={chat}>
-        {view === "dashboard" && <Dashboard go={go} />}
+        {view === "dashboard" && <Dashboard go={go} ask={ask} />}
         {view === "resume" && <Resumes />}
         {view === "jobs" && <Jobs go={go} />}
         {view === "compare" && <Compare go={go} selectedId={param} />}

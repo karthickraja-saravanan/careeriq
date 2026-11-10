@@ -1,4 +1,5 @@
-import { RefreshCw } from "lucide-react";
+import { ArrowLeft, ChevronRight, Clock, FileText, RefreshCw } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { AiButton } from "../AiButton";
 import { useState } from "react";
 import type { AnalysisInfo, JobInfo, MatchReport, RequirementResult, Verdict } from "../api";
@@ -21,7 +22,7 @@ export function Compare({ go, selectedId }: { go: (v: string) => void; selectedI
   const rows = [...data.analyses]
     .filter((a) => jobById.has(a.jobId) && resumeById.has(a.resumeId))
     .sort((x, y) => +new Date(y.createdAt) - +new Date(x.createdAt));
-  const selected = rows.find((a) => a.id === selectedId) ?? rows[0];
+  const selected = selectedId ? rows.find((a) => a.id === selectedId) : undefined;
   const job = selected ? jobById.get(selected.jobId) : undefined;
   const resume = selected ? resumeById.get(selected.resumeId) : undefined;
 
@@ -40,37 +41,59 @@ export function Compare({ go, selectedId }: { go: (v: string) => void; selectedI
           <button className="btn" onClick={() => go(data.resumes.length === 0 ? "resume" : "jobs")}>{data.resumes.length === 0 ? "Go to Resume" : "Go to Jobs"}</button>
         </div>
       ) : (
-        <div className="cmp-layout">
-          <nav className="cmp-list" aria-label="Comparisons">
-            <span className="label">{rows.length} {rows.length === 1 ? "comparison" : "comparisons"}</span>
-            {rows.map((a) => {
-              const j = jobById.get(a.jobId)!;
-              const r = resumeById.get(a.resumeId)!;
-              const tone = scoreTone(a.score);
-              return (
-                <button key={a.id} type="button" className="cmp-item" aria-current={a.id === selected?.id ? "true" : undefined} onClick={() => go(`compare/${a.id}`)}>
-                  <Ring score={a.score} />
-                  <span className="cmp-text">
-                    <strong>{j.title ?? "Untitled role"}</strong>
-                    <span className="caption">{j.label}{j.company ? ` · ${j.company}` : ""}</span>
-                    <span className="caption">Resume: {resumeLabel(r)}</span>
-                    <span className="row" style={{ gap: 6 }}>
+        <AnimatePresence mode="wait" initial={false}>
+          {selected ? (
+            <motion.div key={`detail-${selected.id}`} className="cmp-detail" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.22 }}>
+              <button type="button" className="btn secondary cmp-back" onClick={() => go("compare")}><ArrowLeft size={16} aria-hidden /> All comparisons</button>
+              <motion.div layoutId={`cmp-${selected.id}`} className="card tight cmp-head" transition={{ duration: 0.25 }}>
+                <span className="label">Comparing</span>
+                <p><strong>{resume ? resumeLabel(resume) : "Resume"}</strong> <span className="caption">({resume?.filename ?? "sample data"})</span> with <strong>{job?.label}{job?.title ? ` · ${job.title}` : ""}</strong>{job?.company ? ` at ${job.company}` : ""}</p>
+              </motion.div>
+              <Report job={job!} analysis={selected} busy={isBusy(selected.jobId, selected.resumeId)} onRerun={() => void analyze([selected.jobId], selected.resumeId)} />
+            </motion.div>
+          ) : (
+            <motion.nav key="list" className="cmp-list" aria-label="Comparisons" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
+              <span className="label">{rows.length} {rows.length === 1 ? "comparison" : "comparisons"}</span>
+              {rows.map((a, i) => {
+                const j = jobById.get(a.jobId)!;
+                const r = resumeById.get(a.resumeId)!;
+                const tone = scoreTone(a.score);
+                const reqs = a.report.requirements;
+                const met = reqs.filter((x) => x.verdict === "met").length;
+                const parts: [string, number | null][] = [
+                  ["Required", a.report.components.required.score],
+                  ["Experience", a.report.components.experience.score],
+                  ["Preferred", a.report.components.preferred.score],
+                ];
+                return (
+                  <motion.button key={a.id} layoutId={`cmp-${a.id}`} type="button" className="cmp-item" style={{ ["--tone" as string]: tone.color }} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05, duration: 0.25 }} whileHover={{ y: -2 }} onClick={() => go(`compare/${a.id}`)}>
+                    <Ring score={a.score} />
+                    <span className="cmp-text">
+                      <strong>{j.title ?? "Untitled role"}</strong>
+                      <span className="caption">{j.label}{j.company ? ` · ${j.company}` : ""}</span>
+                      <span className="cmp-resume"><FileText size={13} aria-hidden /> {resumeLabel(r)}</span>
+                    </span>
+                    <span className="cmp-mini" aria-hidden>
+                      {parts.map(([label, v]) => (
+                        <span key={label} className="cmp-mini-row">
+                          <span>{label}</span>
+                          <span className="cmp-mini-track"><span style={{ width: `${v ?? 0}%`, opacity: v === null ? 0 : 1 }} /></span>
+                        </span>
+                      ))}
+                    </span>
+                    <span className="cmp-meta">
                       <span className="chip" style={{ color: tone.color }}>{tone.label}</span>
                       {a.stale && <span className="chip warn">Out of date</span>}
+                      <span className="caption">{reqs.length > 0 ? `${met}/${reqs.length} skills evidenced` : "No skills listed"}</span>
+                      <span className="cmp-date"><Clock size={13} aria-hidden /> Compared {new Date(a.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span>
                     </span>
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
-          <div className="cmp-detail" key={selected!.id}>
-            <div className="card tight cmp-head">
-              <span className="label">Comparing</span>
-              <p><strong>{resume ? resumeLabel(resume) : "Resume"}</strong> <span className="caption">({resume?.filename ?? "sample data"})</span> with <strong>{job?.label}{job?.title ? ` · ${job.title}` : ""}</strong>{job?.company ? ` at ${job.company}` : ""}</p>
-            </div>
-            <Report job={job!} analysis={selected!} busy={isBusy(selected!.jobId, selected!.resumeId)} onRerun={() => void analyze([selected!.jobId], selected!.resumeId)} />
-          </div>
-        </div>
+                    <ChevronRight size={20} aria-hidden className="cmp-chevron" />
+                  </motion.button>
+                );
+              })}
+            </motion.nav>
+          )}
+        </AnimatePresence>
       )}
     </>
   );

@@ -1,4 +1,5 @@
-import { Building2, Clock, GitCompare, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { Building2, ChevronDown, Clock, GitCompare, LayoutGrid, List, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { AiButton } from "../AiButton";
 import { useRef, useState } from "react";
 import { api, isPending, type AnalysisInfo, type JobInfo, type JobParsed, type ResumeInfo } from "../api";
@@ -21,6 +22,8 @@ export function Jobs({ go }: { go: (v: string) => void }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [view, setViewState] = useState<"cards" | "list">(() => { try { return localStorage.getItem("jobs-view") === "list" ? "list" : "cards"; } catch { return "cards"; } });
+  const setView = (v: "cards" | "list") => { setViewState(v); try { localStorage.setItem("jobs-view", v); } catch { /* ignore */ } };
   const fileInput = useRef<HTMLInputElement>(null);
 
   async function run(action: () => Promise<unknown>) {
@@ -52,7 +55,21 @@ export function Jobs({ go }: { go: (v: string) => void }) {
       <PageHead
         title="Job descriptions"
         lead="Each role is kept separate so you can compare them. Paste the text or upload a file, then check the requirements we pulled out."
-        action={<button className="btn" onClick={() => setOpen((o) => !o)}>{open ? "Close" : "Add job"}</button>}
+        action={(
+          <div className="row head-actions">
+            {items && items.length > 0 && (
+              <div className="seg" role="tablist" aria-label="Job layout">
+                {([["cards", "Cards", LayoutGrid], ["list", "List", List]] as const).map(([id, label, Icon]) => (
+                  <button key={id} type="button" role="tab" aria-selected={view === id} aria-label={`${label} view`} title={`${label} view`} className="seg-item" onClick={() => setView(id)}>
+                    {view === id && <motion.span layoutId="jobs-seg" className="seg-pill" transition={{ type: "spring", stiffness: 500, damping: 38 }} />}
+                    <Icon size={16} aria-hidden />
+                  </button>
+                ))}
+              </div>
+            )}
+            <button className="btn" onClick={() => setOpen((o) => !o)}>{open ? "Close" : "Add job"}</button>
+          </div>
+        )}
       />
       {open && (
         <form className="card" onSubmit={(e) => { e.preventDefault(); add(); }}>
@@ -73,23 +90,23 @@ export function Jobs({ go }: { go: (v: string) => void }) {
       {items && items.length === 0 && !open && (
         <div className="dropzone"><h2>No jobs yet</h2><p className="caption">Add two or three roles to compare against your resume.</p></div>
       )}
-      <section className="grid cols-2">
-        {items?.map((j) => (
-          <JobCard
-            key={j.id}
-            job={j}
-            busy={busy}
-            editing={editingId === j.id}
-            resumes={resumes}
-            analyses={career?.analyses ?? []}
-            go={go}
-            onEdit={() => setEditingId(j.id)}
-            onCancelEdit={() => setEditingId(null)}
-            onSave={(t, c, p) => save(j.id, t, c, p)}
-            onReparse={() => void run(() => api.reparseJob(j.id))}
-            onDelete={() => { if (window.confirm(`Delete ${j.label} and its comparisons? This cannot be undone.`)) void run(() => api.deleteJob(j.id)); }}
-          />
-        ))}
+      <section className={view === "list" ? "job-list" : "grid cols-2"}>
+        {items?.map((j, i) => {
+          const common = {
+            job: j,
+            busy,
+            editing: editingId === j.id,
+            resumes,
+            analyses: career?.analyses ?? [],
+            go,
+            onEdit: () => setEditingId(j.id),
+            onCancelEdit: () => setEditingId(null),
+            onSave: (t: string | null, c: string | null, p: JobParsed) => save(j.id, t, c, p),
+            onReparse: () => void run(() => api.reparseJob(j.id)),
+            onDelete: () => { if (window.confirm(`Delete ${j.label} and its comparisons? This cannot be undone.`)) void run(() => api.deleteJob(j.id)); },
+          };
+          return view === "list" ? <JobRow key={j.id} {...common} defaultOpen={i === 0} /> : <JobCard key={j.id} {...common} />;
+        })}
       </section>
     </>
   );
@@ -205,5 +222,77 @@ function CompareBar({ job, resumes, analyses, go }: { job: JobInfo; resumes: Res
       </div>
       {error && <p role="alert" className="chip bad notice">{error}</p>}
     </footer>
+  );
+}
+
+/** Minimal one-line version of a job for the list layout. Click the row to expand the full details. */
+function JobRow({ job: j, busy, editing, resumes, analyses, go, onEdit, onCancelEdit, onSave, onReparse, onDelete, defaultOpen = false }: CardProps & { defaultOpen?: boolean }) {
+  const [expanded, setExpanded] = useState(defaultOpen);
+  const isOpen = expanded || editing;
+  const required = j.parsed?.requiredSkills ?? [];
+  const preferred = j.parsed?.preferredSkills ?? [];
+  const results = analyses.filter((a) => a.jobId === j.id).sort((x, y) => y.score - x.score);
+  const best = results[0];
+  const resumeName = (id: string) => { const r = resumes.find((x) => x.id === id); return r ? resumeLabel(r) : "Resume"; };
+  const panelId = `job-panel-${j.id}`;
+
+  return (
+    <motion.article layout="position" className="card job-row" data-open={isOpen || undefined} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+      <div className="job-row-bar">
+        <button type="button" className="job-row-toggle" aria-expanded={isOpen} aria-controls={panelId} onClick={() => setExpanded((v) => !v)}>
+          <ChevronDown size={18} aria-hidden className="job-row-chev" />
+          <span className="label">{j.label}</span>
+          <span className="job-row-title">{j.title ?? j.filename ?? "Untitled role"}</span>
+          <span className="caption job-row-company">{j.company ?? "Company not set"}</span>
+        </button>
+        <StatusChip d={j} edited={j.userEdited} />
+        {best && <span className="chip result" style={{ color: scoreTone(best.score).color }} title={`Best match: ${resumeName(best.resumeId)}`}><strong>{best.score}</strong></span>}
+        <div className="card-actions">
+          {j.status === "ready" && !editing && <button type="button" className="icon-action" aria-label={`Edit ${j.label}`} title="Edit" onClick={() => { setExpanded(true); onEdit(); }}><Pencil size={16} /></button>}
+          {(j.status === "ready" || j.status === "failed") && (
+            <button type="button" className={`icon-action ${busy ? "spin" : ""}`} aria-label={`Reparse ${j.label}`} title="Reparse with AI" disabled={busy} onClick={onReparse}><RefreshCw size={16} /></button>
+          )}
+          <button type="button" className="icon-action danger" aria-label={`Delete ${j.label}`} title="Delete" disabled={busy} onClick={onDelete}><Trash2 size={16} /></button>
+        </div>
+      </div>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div id={panelId} key="panel" className="job-row-panel" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} style={{ overflow: "hidden" }}>
+            <div className="job-row-body">
+              {editing && j.parsed ? (
+                <JobEditor id={`job-${j.id}`} title={j.title} company={j.company} value={j.parsed} saving={busy} onSave={onSave} onCancel={onCancelEdit} />
+              ) : (
+                <>
+                  {j.parsed?.experienceRequirement && <p className="caption"><Clock size={13} aria-hidden="true" /> {j.parsed.experienceRequirement}</p>}
+                  {j.status === "failed" && <p role="alert" className="chip bad notice">{j.error}</p>}
+                  {isPending(j.status) && <p className="caption">Reading the job description…</p>}
+                  {j.parsed && (
+                    <div className="job-skills">
+                      <span className="label">Required skills</span>
+                      <div className="chips">
+                        {required.length === 0 && <span className="caption">None found</span>}
+                        {required.map((s) => <span className="chip" key={s}>{s}</span>)}
+                      </div>
+                      {preferred.length > 0 && <p className="nice"><span>Nice to have</span> {preferred.join(", ")}</p>}
+                    </div>
+                  )}
+                  {results.length > 0 && (
+                    <div className="job-results" aria-label="Previous comparisons">
+                      <span className="label">Compared</span>
+                      {results.map((a) => (
+                        <button key={a.id} type="button" className="chip result" style={{ color: scoreTone(a.score).color }} onClick={() => go(`compare/${a.id}`)} title={`Open comparison with ${resumeName(a.resumeId)}`}>
+                          <strong>{a.score}</strong> <span>{resumeName(a.resumeId)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {j.status === "ready" && <CompareBar job={j} resumes={resumes} analyses={analyses} go={go} />}
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.article>
   );
 }
