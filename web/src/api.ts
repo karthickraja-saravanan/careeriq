@@ -126,7 +126,17 @@ export async function streamAnswer(conversationId: string, content: string, h: S
   if (!finished) throw new Error("The answer was cut off. Please try again.");
 }
 
+export interface UsageTotals { calls: number; errors: number; promptTokens: number; completionTokens: number; totalTokens: number }
+export interface UsageGroup extends UsageTotals { key: string }
+export interface UsageSummary {
+  totals: UsageTotals;
+  byPurpose: UsageGroup[];
+  byModel: UsageGroup[];
+  recent: { id: string; purpose: string; model: string; promptTokens: number; completionTokens: number; estimated: boolean; latencyMs: number; status: string; createdAt: string }[];
+}
+
 export const api = {
+  usage: () => request<UsageSummary>("/usage"),
   listInterviewPreps: () => request<{ preps: InterviewPrep[] }>("/interview-preps").then((r) => r.preps),
   generateInterviewPrep: (jobId: string, resumeId?: string) => request<InterviewPrep>("/interview-preps", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ jobId, resumeId }) }),
   seedDemoData: () => request<{ resumes: number; jobs: number }>("/settings/seed-demo-data", { method: "POST" }),

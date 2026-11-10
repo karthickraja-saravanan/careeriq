@@ -7,12 +7,13 @@ import { createEmbedHandler, createExtractHandler, createParseHandler } from "./
 import { createTransformersEmbedder } from "./embeddings/transformersEmbedder.js";
 import { EMBED_QUEUE, EXTRACT_QUEUE, PARSE_QUEUE, startPgBossQueue, type JobQueue } from "./queue/jobQueue.js";
 import { createLlmClient } from "./llm/factory.js";
+import { UsageRepo, createUsageRecorder } from "./llm/usage.js";
 
 const env = loadEnv();
 const pool = createPool(env.DATABASE_URL);
 const storage = new FileStorage(env.STORAGE_DIR);
 const repo = new DocumentRepo(pool);
-const llm = createLlmClient(env);
+const llm = createLlmClient(env, createUsageRecorder(new UsageRepo(pool)));
 const embedder = createTransformersEmbedder(env.EMBEDDING_CACHE_DIR);
 if (!llm) console.warn("LLM not configured (set GROQ_API_KEY): documents will be extracted but not parsed.");
 

@@ -10,7 +10,7 @@ export class ParseError extends Error {}
  */
 export async function completeValidated<T>(
   llm: LlmClient,
-  req: Pick<JsonCompletionRequest, "tier" | "system" | "user">,
+  req: Pick<JsonCompletionRequest, "tier" | "system" | "user" | "meta">,
   schema: ZodType<T, ZodTypeDef, unknown>,
 ): Promise<T> {
   let history: NonNullable<JsonCompletionRequest["history"]> = [];

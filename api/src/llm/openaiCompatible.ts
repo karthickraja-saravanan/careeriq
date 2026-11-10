@@ -1,4 +1,4 @@
-import { LlmUnavailableError, type JsonCompletionRequest, type LlmClient, type StreamRequest } from "./types.js";
+import { LlmUnavailableError, type JsonCompletionRequest, type LlmClient, type LlmUsageRecord, type StreamRequest, type UsageRecorder } from "./types.js";
 
 export interface OpenAiCompatibleOptions {
   baseUrl: string;
@@ -8,7 +8,16 @@ export interface OpenAiCompatibleOptions {
   maxAttempts?: number;
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
+  /** Called once per finished call (success, failure or cancel). Must not throw; errors are swallowed. */
+  onUsage?: UsageRecorder;
 }
+
+interface ProviderUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+}
+
+const approxTokens = (text: string) => Math.ceil(text.length / 4);
 
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
@@ -49,46 +58,94 @@ export function createOpenAiCompatibleClient(opts: OpenAiCompatibleOptions): Llm
     }
   }
 
+  function report(base: Omit<LlmUsageRecord, "promptTokens" | "completionTokens" | "estimated">, usage: ProviderUsage | undefined, fallback: { prompt: string; completion: string }) {
+    if (!opts.onUsage) return;
+    const reported = typeof usage?.prompt_tokens === "number" && typeof usage?.completion_tokens === "number";
+    try {
+      opts.onUsage({
+        ...base,
+        promptTokens: reported ? usage!.prompt_tokens! : approxTokens(fallback.prompt),
+        completionTokens: reported ? usage!.completion_tokens! : approxTokens(fallback.completion),
+        estimated: !reported,
+      });
+    } catch {
+      /* usage tracking must never break a request */
+    }
+  }
+
   return {
     async completeJson(req: JsonCompletionRequest) {
-      const res = await send(
-        {
-          model: opts.models[req.tier],
-          temperature: 0,
-          response_format: { type: "json_object" },
-          messages: [{ role: "system", content: req.system }, { role: "user", content: req.user }, ...(req.history ?? [])],
-        },
-        AbortSignal.timeout(opts.timeoutMs ?? 60_000),
-      );
-      const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-      const content = json.choices?.[0]?.message?.content;
-      if (!content) throw new LlmUnavailableError("LLM returned an empty response");
+      const model = opts.models[req.tier];
+      const started = Date.now();
+      const messages = [{ role: "system", content: req.system }, { role: "user", content: req.user }, ...(req.history ?? [])];
+      const base = { userId: req.meta?.userId, purpose: req.meta?.purpose ?? "unknown", model, tier: req.tier };
+      const promptText = messages.map((m) => m.content).join("\n");
+      let content: string | undefined;
+      let usage: ProviderUsage | undefined;
+      try {
+        const res = await send({ model, temperature: 0, response_format: { type: "json_object" }, messages }, AbortSignal.timeout(opts.timeoutMs ?? 60_000));
+        const json = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: ProviderUsage };
+        content = json.choices?.[0]?.message?.content;
+        usage = json.usage;
+        if (!content) throw new LlmUnavailableError("LLM returned an empty response");
+      } catch (err) {
+        report({ ...base, latencyMs: Date.now() - started, status: "error", error: (err as Error).message.slice(0, 300) }, usage, { prompt: promptText, completion: "" });
+        throw err;
+      }
+      report({ ...base, latencyMs: Date.now() - started, status: "ok" }, usage, { prompt: promptText, completion: content });
       return content;
     },
 
     async *streamChat(req: StreamRequest) {
-      const signals = [AbortSignal.timeout((opts.timeoutMs ?? 60_000) * 2), ...(req.signal ? [req.signal] : [])];
-      const res = await send({ model: opts.models[req.tier], temperature: 0.2, stream: true, messages: req.messages }, AbortSignal.any(signals));
-      if (!res.body) throw new LlmUnavailableError("LLM returned no stream");
+      const model = opts.models[req.tier];
+      const started = Date.now();
+      const base = { userId: req.meta?.userId, purpose: req.meta?.purpose ?? "unknown", model, tier: req.tier };
+      const promptText = req.messages.map((m) => m.content).join("\n");
+      let answer = "";
+      let usage: ProviderUsage | undefined;
+      let status: LlmUsageRecord["status"] = "cancelled"; // stays so if the consumer stops reading early
+      let error: string | undefined;
+      try {
+        const signals = [AbortSignal.timeout((opts.timeoutMs ?? 60_000) * 2), ...(req.signal ? [req.signal] : [])];
+        const res = await send({ model, temperature: 0.2, stream: true, stream_options: { include_usage: true }, messages: req.messages }, AbortSignal.any(signals));
+        if (!res.body) throw new LlmUnavailableError("LLM returned no stream");
 
-      const decoder = new TextDecoder();
-      let buffer = "";
-      for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
-        buffer += decoder.decode(chunk, { stream: true });
-        let nl: number;
-        while ((nl = buffer.indexOf("\n")) >= 0) {
-          const line = buffer.slice(0, nl).trim();
-          buffer = buffer.slice(nl + 1);
-          if (!line.startsWith("data:")) continue;
-          const data = line.slice(5).trim();
-          if (data === "[DONE]") return;
-          try {
-            const delta = (JSON.parse(data) as { choices?: { delta?: { content?: string } }[] }).choices?.[0]?.delta?.content;
-            if (delta) yield delta;
-          } catch {
-            /* ignore keep-alive or partial lines */
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let done = false;
+        for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+          buffer += decoder.decode(chunk, { stream: true });
+          let nl: number;
+          while ((nl = buffer.indexOf("\n")) >= 0) {
+            const line = buffer.slice(0, nl).trim();
+            buffer = buffer.slice(nl + 1);
+            if (!line.startsWith("data:")) continue;
+            const data = line.slice(5).trim();
+            if (data === "[DONE]") {
+              done = true;
+              break;
+            }
+            try {
+              const parsed = JSON.parse(data) as { choices?: { delta?: { content?: string } }[]; usage?: ProviderUsage; x_groq?: { usage?: ProviderUsage } };
+              usage = parsed.usage ?? parsed.x_groq?.usage ?? usage;
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) {
+                answer += delta;
+                yield delta;
+              }
+            } catch {
+              /* ignore keep-alive or partial lines */
+            }
           }
+          if (done) break;
         }
+        status = "ok";
+      } catch (err) {
+        status = req.signal?.aborted ? "cancelled" : "error";
+        error = (err as Error).message.slice(0, 300);
+        throw err;
+      } finally {
+        report({ ...base, latencyMs: Date.now() - started, status, ...(error ? { error } : {}) }, usage, { prompt: promptText, completion: answer });
       }
     },
   };

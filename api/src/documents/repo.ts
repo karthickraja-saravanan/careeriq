@@ -163,8 +163,8 @@ export class DocumentRepo {
 
   /** Worker-side lookup (not user-scoped: the job payload comes from our own queue, not from a request). */
   async getForProcessing(id: string) {
-    const { rows } = await this.pool.query<{ kind: DocKind; storage_path: string | null; raw_text: string | null; original_filename: string | null }>(
-      "SELECT kind, storage_path, raw_text, original_filename FROM documents WHERE id = $1",
+    const { rows } = await this.pool.query<{ user_id: string; kind: DocKind; storage_path: string | null; raw_text: string | null; original_filename: string | null }>(
+      "SELECT user_id, kind, storage_path, raw_text, original_filename FROM documents WHERE id = $1",
       [id],
     );
     return rows[0] ?? null;

@@ -277,3 +277,13 @@ main.bleed { max-width: none; padding: 0; gap: 0; height: 100%; }
 .nav-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .nav-row .btn { display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 640px) { .nav-row .caption { display: none; } .flash { padding: 20px; } }
+
+/* Settings: AI usage */
+.usage-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; margin: 0; }
+.usage-totals div { background: var(--surface, rgba(127,127,127,.08)); border-radius: var(--r-lg); padding: 12px 14px; }
+.usage-totals dt { font-size: 12px; color: var(--muted, #6b7280); }
+.usage-totals dd { margin: 2px 0 0; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.usage-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.usage-table th, .usage-table td { text-align: left; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+.usage-table th { font-size: 12px; font-weight: 500; color: var(--muted, #6b7280); }
+.usage-table th:not(:first-child), .usage-table td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }

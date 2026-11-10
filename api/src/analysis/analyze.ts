@@ -65,7 +65,7 @@ export class AnalysisService {
     try {
       judged = await completeValidated(
         this.llm,
-        { tier: "main", system: JUDGE_SYSTEM, user: buildJudgeUser(rows.map((r) => ({ cite: `R${r.ordinal}`, content: r.content })), job.parsed, job.title, job.company) },
+        { tier: "main", meta: { userId, purpose: "analysis" }, system: JUDGE_SYSTEM, user: buildJudgeUser(rows.map((r) => ({ cite: `R${r.ordinal}`, content: r.content })), job.parsed, job.title, job.company) },
         judgeOutputSchema,
       );
     } catch (err) {

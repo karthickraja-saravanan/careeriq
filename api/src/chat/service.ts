@@ -38,10 +38,10 @@ export class ChatService {
   ) {}
 
   /** Standalone version of a follow-up question. Fails open: on any error the original question is used. */
-  private async rewrite(history: { role: string; content: string }[], question: string): Promise<string | null> {
+  private async rewrite(userId: string, history: { role: string; content: string }[], question: string): Promise<string | null> {
     if (history.length === 0 || !this.llm) return null;
     try {
-      const raw = await this.llm.completeJson({ tier: "fast", system: REWRITE_SYSTEM, user: buildRewriteUser(history, question) });
+      const raw = await this.llm.completeJson({ tier: "fast", meta: { userId, purpose: "chat_rewrite" }, system: REWRITE_SYSTEM, user: buildRewriteUser(history, question) });
       const out = rewriteSchema.parse(JSON.parse(raw)).question;
       return out === question ? null : out;
     } catch (err) {
@@ -61,7 +61,7 @@ export class ChatService {
     await this.repo.addMessage(userId, conversationId, { role: "user", content: question });
     await this.repo.setTitleIfEmpty(userId, conversationId, question.length > 60 ? `${question.slice(0, 57)}...` : question);
 
-    const rewritten = await this.rewrite(history, question);
+    const rewritten = await this.rewrite(userId, history, question);
     const standalone = rewritten ?? question;
     const tRewrite = Date.now();
 
@@ -123,7 +123,7 @@ export class ChatService {
       let raw = "";
       let firstToken: number | null = null;
       try {
-        for await (const piece of llm.streamChat({ tier: "main", messages, signal })) {
+        for await (const piece of llm.streamChat({ tier: "main", meta: { userId, purpose: "chat" }, messages, signal })) {
           if (firstToken === null) firstToken = Date.now() - tRetrieve;
           raw += piece;
           yield { type: "token", text: piece };

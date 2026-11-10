@@ -97,6 +97,7 @@ export class InterviewService {
         this.llm,
         {
           tier: "main",
+          meta: { userId, purpose: "interview" },
           system: INTERVIEW_SYSTEM,
           user: buildInterviewUser(rows.map((r) => ({ cite: `R${r.ordinal}`, content: r.content })), job.parsed, job.title, job.company, topics.map((t) => t.requirement)),
         },

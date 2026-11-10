@@ -67,10 +67,10 @@ export function createParseHandler(
     await repo.setStatus(documentId, "parsing");
     try {
       if (doc.kind === "resume") {
-        const parsed = await parseResume(llm, doc.raw_text);
+        const parsed = await parseResume(llm, doc.raw_text, doc.user_id);
         await repo.saveResumeParse(documentId, parsed, computeYearsOfExperience(parsed.experience).years);
       } else {
-        await repo.saveJobParse(documentId, await parseJob(llm, doc.raw_text));
+        await repo.saveJobParse(documentId, await parseJob(llm, doc.raw_text, doc.user_id));
       }
       await onParsed(documentId); // indexing marks the document ready
     } catch (err) {
