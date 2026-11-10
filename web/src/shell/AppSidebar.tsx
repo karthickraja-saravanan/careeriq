@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Briefcase, FileText, GitCompare, GraduationCap, LayoutDashboard, MessageSquare, PanelLeft, Settings, SquarePen, X, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Briefcase, FileText, GitCompare, GraduationCap, LayoutDashboard, MessageSquare, PanelLeft, Settings, SquarePen, X, type LucideIcon } from "lucide-react";
 import type { Conversation } from "../api";
 import { ChatHistory } from "../chat/ChatHistory";
 
@@ -33,7 +33,7 @@ interface Props {
 const WIDTH = 268;
 const RAIL = 60;
 
-/** App-wide navigation. When the Assistant page is open, the chat history appears below the menu. */
+/** App-wide navigation. On the Assistant page the menu is replaced by a Back button, New chat and the chat history. */
 export function AppSidebar(p: Props) {
   const rail = !p.isMobile && p.collapsed;
   const inChat = p.view === "assistant";
@@ -47,18 +47,27 @@ export function AppSidebar(p: Props) {
           : <button type="button" className="icon-btn" aria-label={rail ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!rail} onClick={p.onToggleCollapsed}><PanelLeft size={20} /></button>}
       </div>
 
-      <nav className="side-nav" aria-label="Main">
-        {NAV.map(({ id, label, icon: Icon }) => {
-          const active = p.view === id;
-          return (
-            <button key={id} type="button" className={`side-link ${rail ? "rail" : ""}`} aria-current={active ? "page" : undefined} title={rail ? label : undefined} aria-label={label} onClick={() => p.go(id)}>
-              {active && <motion.span layoutId="side-active" className="side-active" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
-              <Icon size={18} aria-hidden="true" />
-              {!rail && <span>{label}</span>}
-            </button>
-          );
-        })}
-      </nav>
+      {inChat ? (
+        <nav className="side-nav" aria-label="Main">
+          <button type="button" className={`side-link ${rail ? "rail" : ""}`} aria-label="Back to menu" title={rail ? "Back to menu" : undefined} onClick={() => p.go("dashboard")}>
+            <ArrowLeft size={18} aria-hidden="true" />
+            {!rail && <span>Back to menu</span>}
+          </button>
+        </nav>
+      ) : (
+        <nav className="side-nav" aria-label="Main">
+          {NAV.map(({ id, label, icon: Icon }) => {
+            const active = p.view === id;
+            return (
+              <button key={id} type="button" className={`side-link ${rail ? "rail" : ""}`} aria-current={active ? "page" : undefined} title={rail ? label : undefined} aria-label={label} onClick={() => p.go(id)}>
+                {active && <motion.span layoutId="side-active" className="side-active" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
+                <Icon size={18} aria-hidden="true" />
+                {!rail && <span>{label}</span>}
+              </button>
+            );
+          })}
+        </nav>
+      )}
 
       {inChat && (
         <>
