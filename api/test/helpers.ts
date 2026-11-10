@@ -83,7 +83,7 @@ export async function startTestApp(overrides: Record<string, string> = {}, llm: 
     [EMBED_QUEUE]: createEmbedHandler(repo, embedder, silent),
   });
   const env = loadEnv({ DATABASE_URL: TEST_DB_URL!, LOG_LEVEL: "silent", ...overrides });
-  const server: Server = buildApp({ env, pool, storage, queue, embedder }).listen(0);
+  const server: Server = buildApp({ env, pool, storage, queue, embedder, llm: llm ?? undefined }).listen(0);
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v1`;
   return {
     base, pool, repo, queue, storage, storageDir, llm, embedder,

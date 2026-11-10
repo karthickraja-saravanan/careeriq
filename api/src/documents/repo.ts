@@ -29,15 +29,17 @@ export interface ResumeSummary {
   id: string;
   parsed: ResumeParsed | null;
   yearsExperience: number | null;
+  version: number;
   userEdited: boolean;
   document: DocumentRow;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toResume = ({ owner_id, parsed, years_experience, user_edited, ...document }: any): ResumeSummary => ({
+const toResume = ({ owner_id, parsed, years_experience, version, user_edited, ...document }: any): ResumeSummary => ({
   id: owner_id,
   parsed,
   yearsExperience: years_experience === null ? null : Number(years_experience),
+  version,
   userEdited: user_edited,
   document,
 });
@@ -104,7 +106,7 @@ export class DocumentRepo {
 
   async listResumes(userId: string): Promise<ResumeSummary[]> {
     const { rows } = await this.pool.query(
-      `SELECT r.id AS owner_id, r.parsed, r.years_experience, r.user_edited, ${DOC_COLS} FROM resumes r JOIN documents d ON d.id = r.document_id
+      `SELECT r.id AS owner_id, r.parsed, r.years_experience, r.version, r.user_edited, ${DOC_COLS} FROM resumes r JOIN documents d ON d.id = r.document_id
        WHERE r.user_id = $1 ORDER BY d.created_at DESC`,
       [userId],
     );
@@ -113,7 +115,7 @@ export class DocumentRepo {
 
   async getResume(userId: string, id: string): Promise<ResumeSummary | null> {
     const { rows } = await this.pool.query(
-      `SELECT r.id AS owner_id, r.parsed, r.years_experience, r.user_edited, ${DOC_COLS} FROM resumes r JOIN documents d ON d.id = r.document_id
+      `SELECT r.id AS owner_id, r.parsed, r.years_experience, r.version, r.user_edited, ${DOC_COLS} FROM resumes r JOIN documents d ON d.id = r.document_id
        WHERE r.user_id = $1 AND r.id = $2`,
       [userId, id],
     );

@@ -24,7 +24,7 @@ queue = await startPgBossQueue(env.DATABASE_URL, {
   [EMBED_QUEUE]: createEmbedHandler(repo, embedder),
 });
 
-const server = buildApp({ env, pool, storage, queue, embedder }).listen(env.PORT, "0.0.0.0", () => {
+const server = buildApp({ env, pool, storage, queue, embedder, llm }).listen(env.PORT, "0.0.0.0", () => {
   console.log(`API listening on :${env.PORT}`);
 });
 

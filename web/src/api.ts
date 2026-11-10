@@ -10,6 +10,20 @@ export interface DocInfo {
   textPreview?: string | null;
   text?: string | null;
 }
+export type Verdict = "met" | "partial" | "missing";
+export interface RequirementResult {
+  id: string; kind: "required" | "preferred"; requirement: string; verdict: Verdict; evidence: string[]; reason: string; adjusted?: string;
+}
+export interface MatchReport {
+  score: number;
+  components: { required: { score: number | null }; preferred: { score: number | null }; experience: { score: number | null } };
+  requirements: RequirementResult[];
+  experience: { requirement: string; verdict: Verdict; score: number; source: "dates" | "model"; candidateYears: number | null; requiredYears: number | null; evidence: string[]; reason: string } | null;
+  strengths: string[]; concerns: string[]; recommendations: string[];
+  sources: Record<string, { section: string; content: string }>;
+}
+export interface AnalysisInfo { id: string; jobId: string; score: number; report: MatchReport; createdAt: string; stale: boolean }
+
 export interface ResumeInfo extends DocInfo {
   parsed: ResumeParsed | null;
   yearsExperience: number | null;
@@ -83,5 +97,7 @@ export const api = {
   saveJob: (id: string, title: string | null, company: string | null, parsed: JobParsed) =>
     request<JobInfo>(`/jobs/${id}`, { method: "PATCH", headers: JSON_HEADERS, body: JSON.stringify({ title, company, parsed }) }),
   reparseJob: (id: string) => request<void>(`/jobs/${id}/reparse`, { method: "POST" }),
+  listAnalyses: () => request<{ analyses: AnalysisInfo[] }>("/analyses").then((r) => r.analyses),
+  analyze: (jobId: string) => request<AnalysisInfo>("/analyses", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ jobId }) }),
   deleteJob: (id: string) => request<void>(`/jobs/${id}`, { method: "DELETE" }),
 };

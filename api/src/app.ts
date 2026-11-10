@@ -16,6 +16,9 @@ import type { FileStorage } from "./documents/storage.js";
 import type { JobQueue } from "./queue/jobQueue.js";
 import type { Embedder } from "./embeddings/types.js";
 import { searchRoutes } from "./routes/search.js";
+import { analysisRoutes } from "./routes/analyses.js";
+import { AnalysisService } from "./analysis/analyze.js";
+import type { LlmClient } from "./llm/types.js";
 
 export interface AppDeps {
   env: Env;
@@ -23,9 +26,10 @@ export interface AppDeps {
   storage: FileStorage;
   queue: JobQueue;
   embedder: Embedder;
+  llm?: LlmClient;
 }
 
-export function buildApp({ env, pool, storage, queue, embedder }: AppDeps): Express {
+export function buildApp({ env, pool, storage, queue, embedder, llm }: AppDeps): Express {
   const app = express();
 
   app.use(
@@ -40,8 +44,10 @@ export function buildApp({ env, pool, storage, queue, embedder }: AppDeps): Expr
   app.use(express.json({ limit: "1mb" }));
 
   app.use("/api/v1", healthRouter(pool));
+  const docs = new DocumentRepo(pool);
   app.use("/api/v1", demoUser, searchRoutes(pool, embedder));
-  app.use("/api/v1", demoUser, documentRoutes({ repo: new DocumentRepo(pool), storage, queue, maxUploadBytes: env.MAX_UPLOAD_BYTES }));
+  app.use("/api/v1", demoUser, analysisRoutes(new AnalysisService(pool, docs, llm, env.LLM_MODEL_MAIN)));
+  app.use("/api/v1", demoUser, documentRoutes({ repo: docs, storage, queue, maxUploadBytes: env.MAX_UPLOAD_BYTES }));
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Route not found" } });
