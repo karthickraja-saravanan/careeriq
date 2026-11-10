@@ -52,7 +52,6 @@ function ResumeCard({ resume: current, defaultOpen, onChanged }: { resume: Resum
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [rawText, setRawText] = useState<string | null>(null);
   const p = current.parsed;
 
   async function run(action: () => Promise<unknown>) {
@@ -119,14 +118,6 @@ function ResumeCard({ resume: current, defaultOpen, onChanged }: { resume: Resum
             {editing
               ? <ResumeEditor value={p} saving={busy} onSave={save} onCancel={() => setEditing(false)} />
               : <ResumeView r={current} />}
-            {!editing && (
-              <div>
-                <button className="btn secondary" onClick={async () => setRawText(rawText === null ? ((await api.getResume(current.id)).text ?? "") : null)}>
-                  {rawText === null ? "Show extracted text" : "Hide extracted text"}
-                </button>
-                {rawText !== null && <pre className="extract" style={{ marginTop: 12 }}>{rawText}</pre>}
-              </div>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
