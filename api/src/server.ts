@@ -4,14 +4,15 @@ import { buildApp } from "./app.js";
 
 const env = loadEnv();
 const pool = createPool(env.DATABASE_URL);
-const app = await buildApp({ env, pool });
+const server = buildApp({ env, pool }).listen(env.PORT, "0.0.0.0", () => {
+  console.log(`API listening on :${env.PORT}`);
+});
 
-const shutdown = async () => {
-  await app.close();
-  await pool.end();
-  process.exit(0);
+const shutdown = () => {
+  server.close(async () => {
+    await pool.end();
+    process.exit(0);
+  });
 };
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
-
-await app.listen({ port: env.PORT, host: "0.0.0.0" });

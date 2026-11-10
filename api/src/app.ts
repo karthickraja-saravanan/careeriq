@@ -1,43 +1,50 @@
-import Fastify, { type FastifyInstance } from "fastify";
-import cors from "@fastify/cors";
-import helmet from "@fastify/helmet";
-import rateLimit from "@fastify/rate-limit";
+import express, { type ErrorRequestHandler, type Express } from "express";
+import helmet from "helmet";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
+import { pinoHttp } from "pino-http";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import type { Env } from "./config/env.js";
-import { healthRoutes } from "./routes/health.js";
+import { healthRouter } from "./routes/health.js";
 
 export interface AppDeps {
   env: Env;
   pool: pg.Pool;
 }
 
-export async function buildApp({ env, pool }: AppDeps): Promise<FastifyInstance> {
-  const app = Fastify({
-    logger: { level: env.LOG_LEVEL },
-    genReqId: (req) => (req.headers["x-request-id"] as string | undefined) ?? randomUUID(),
-    bodyLimit: 1_048_576,
+export function buildApp({ env, pool }: AppDeps): Express {
+  const app = express();
+
+  app.use(
+    pinoHttp({
+      level: env.LOG_LEVEL,
+      genReqId: (req) => (req.headers["x-request-id"] as string | undefined) ?? randomUUID(),
+    }),
+  );
+  app.use(helmet());
+  app.use(cors({ origin: env.CORS_ORIGIN.split(",") }));
+  app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: true, legacyHeaders: false }));
+  app.use(express.json({ limit: "1mb" }));
+
+  app.use("/api/v1", healthRouter(pool));
+
+  app.use((_req, res) => {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Route not found" } });
   });
 
-  await app.register(helmet);
-  await app.register(cors, { origin: env.CORS_ORIGIN.split(",") });
-  await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
-
   // Consistent error shape: { error: { code, message } }. Internals are never leaked.
-  app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, req, reply) => {
-    const status = err.statusCode && err.statusCode < 500 ? err.statusCode : 500;
+  const onError: ErrorRequestHandler = (err, req, res, _next) => {
+    const status = typeof err.status === "number" && err.status < 500 ? err.status : 500;
     if (status >= 500) req.log.error({ err }, "unhandled error");
-    reply.status(status).send({
+    res.status(status).json({
       error: {
         code: status === 500 ? "INTERNAL_ERROR" : (err.code ?? "BAD_REQUEST"),
         message: status === 500 ? "Something went wrong" : err.message,
       },
     });
-  });
-  app.setNotFoundHandler((_req, reply) =>
-    reply.status(404).send({ error: { code: "NOT_FOUND", message: "Route not found" } }),
-  );
+  };
+  app.use(onError);
 
-  await app.register(healthRoutes(pool), { prefix: "/api/v1" });
   return app;
 }
