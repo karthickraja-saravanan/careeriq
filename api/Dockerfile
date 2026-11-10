@@ -16,6 +16,8 @@ COPY web/package.json web/
 RUN npm ci -w api --omit=dev
 COPY --from=build /app/api/dist api/dist
 COPY api/migrations api/migrations
+# Named volume inherits this ownership, so the non-root user can write uploads.
+RUN mkdir -p /app/storage && chown node:node /app/storage
 USER node
 EXPOSE 3001
 # Apply migrations, then start. dist layout: dist/server.js
