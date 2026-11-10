@@ -7,6 +7,11 @@ const schema = z.object({
   DATABASE_URL: z.string().url(),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   STORAGE_DIR: z.string().default("./storage"),
+  LLM_PROVIDER: z.enum(["groq", "ollama"]).default("groq"),
+  GROQ_API_KEY: z.string().optional().transform((v) => v || undefined),
+  LLM_MODEL_MAIN: z.string().default("llama-3.3-70b-versatile"),
+  LLM_MODEL_FAST: z.string().default("llama-3.1-8b-instant"),
+  OLLAMA_BASE_URL: z.string().default("http://localhost:11434/v1"),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(5 * 1024 * 1024),
 });
 

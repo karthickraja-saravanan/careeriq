@@ -10,13 +10,43 @@ export interface DocInfo {
   textPreview?: string | null;
   text?: string | null;
 }
+export interface ResumeInfo extends DocInfo {
+  parsed: ResumeParsed | null;
+  yearsExperience: number | null;
+  userEdited: boolean;
+}
 export interface JobInfo extends DocInfo {
   label: string;
   title: string | null;
   company: string | null;
+  parsed: JobParsed | null;
+  userEdited: boolean;
 }
 
-export const isPending = (s: DocStatus) => s === "uploaded" || s === "extracting";
+export const isPending = (s: DocStatus) => s !== "ready" && s !== "failed";
+
+export interface ResumeParsed {
+  name: string | null;
+  headline: string | null;
+  summary: string;
+  skills: string[];
+  experience: { title: string; company: string; start: string | null; end: string | null; bullets: string[] }[];
+  projects: string[];
+  education: string[];
+  certifications: string[];
+}
+export interface JobParsed {
+  title: string | null;
+  company: string | null;
+  summary: string;
+  responsibilities: string[];
+  requiredSkills: string[];
+  preferredSkills: string[];
+  experienceRequirement: string | null;
+  minYears: number | null;
+}
+
+const JSON_HEADERS = { "content-type": "application/json" };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api/v1${path}`, init);
@@ -34,8 +64,10 @@ const fileForm = (file: File, fields: Record<string, string> = {}) => {
 };
 
 export const api = {
-  listResumes: () => request<{ resumes: DocInfo[] }>("/resumes").then((r) => r.resumes),
-  getResume: (id: string) => request<DocInfo>(`/resumes/${id}`),
+  listResumes: () => request<{ resumes: ResumeInfo[] }>("/resumes").then((r) => r.resumes),
+  getResume: (id: string) => request<ResumeInfo>(`/resumes/${id}`),
+  saveResume: (id: string, parsed: ResumeParsed) => request<ResumeInfo>(`/resumes/${id}`, { method: "PATCH", headers: JSON_HEADERS, body: JSON.stringify({ parsed }) }),
+  reparseResume: (id: string) => request<void>(`/resumes/${id}/reparse`, { method: "POST" }),
   uploadResume: (file: File) => request<{ id: string }>("/resumes", { method: "POST", body: fileForm(file) }),
   deleteResume: (id: string) => request<void>(`/resumes/${id}`, { method: "DELETE" }),
 
@@ -43,10 +75,13 @@ export const api = {
   addJobText: (text: string, title: string, company: string) =>
     request<{ id: string }>("/jobs", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ text, title: title || undefined, company: company || undefined }),
     }),
   addJobFile: (file: File, title: string, company: string) =>
     request<{ id: string }>("/jobs", { method: "POST", body: fileForm(file, { title, company }) }),
+  saveJob: (id: string, title: string | null, company: string | null, parsed: JobParsed) =>
+    request<JobInfo>(`/jobs/${id}`, { method: "PATCH", headers: JSON_HEADERS, body: JSON.stringify({ title, company, parsed }) }),
+  reparseJob: (id: string) => request<void>(`/jobs/${id}/reparse`, { method: "POST" }),
   deleteJob: (id: string) => request<void>(`/jobs/${id}`, { method: "DELETE" }),
 };

@@ -15,11 +15,11 @@ export const resume = {
   years: 5,
   skills: ["TypeScript", "Node.js", "PostgreSQL", "REST APIs", "Docker", "AWS (EC2, S3)", "React", "Jest"],
   experience: [
-    { id: "R2", role: "Backend Engineer", org: "Finlytics", dates: "2022 to now", bullets: ["Built billing APIs handling 2M requests per day", "Cut p95 latency 40% by adding query indexes and caching"] },
-    { id: "R3", role: "Software Engineer", org: "Cartwheel", dates: "2019 to 2022", bullets: ["Shipped order tracking service in Node.js and PostgreSQL", "Introduced Jest test suite, coverage from 20% to 78%"] },
+    { id: "R2", role: "Backend Engineer", org: "Finlytics", dates: "2023 to now", bullets: ["Built billing APIs handling 2M requests per day", "Cut p95 latency 40% by adding query indexes and caching"] },
+    { id: "R3", role: "Software Engineer", org: "Cartwheel", dates: "2021 to 2023", bullets: ["Shipped order tracking service in Node.js and PostgreSQL", "Introduced Jest test suite, coverage from 20% to 78%"] },
   ],
   projects: ["Open-source CSV validator (1.2k stars)", "Side project: expense splitter with React and Express"],
-  education: "B.Tech Computer Science, 2019",
+  education: "B.Tech Computer Science, 2021",
   certifications: ["AWS Cloud Practitioner"],
 };
 

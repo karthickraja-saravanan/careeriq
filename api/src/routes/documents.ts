@@ -4,9 +4,11 @@ import { z } from "zod";
 import { createHash } from "node:crypto";
 import { HttpError } from "../errors.js";
 import { detectFormat, MIME_BY_FORMAT } from "../documents/fileTypes.js";
-import type { DocumentRepo } from "../documents/repo.js";
+import type { DocumentRepo, JobSummary, ResumeSummary } from "../documents/repo.js";
 import type { FileStorage } from "../documents/storage.js";
-import { EXTRACT_QUEUE, type JobQueue } from "../queue/jobQueue.js";
+import { EXTRACT_QUEUE, PARSE_QUEUE, type JobQueue } from "../queue/jobQueue.js";
+import { jobParsedSchema, resumeParsedSchema } from "../parsing/schemas.js";
+import { computeYearsOfExperience } from "../parsing/experience.js";
 
 export interface DocumentRouteDeps {
   repo: DocumentRepo;
@@ -29,6 +31,13 @@ const present = (d: { id: string; kind: string; status: string; error: string | 
   error: d.error,
   createdAt: d.created_at,
   ...(withText ? { text: d.raw_text } : { textPreview: d.raw_text?.slice(0, 300) ?? null }),
+});
+
+const presentResume = (r: ResumeSummary, withText: boolean) => ({
+  id: r.id, ...present(r.document, withText), parsed: r.parsed, yearsExperience: r.yearsExperience, userEdited: r.userEdited,
+});
+const presentJob = (j: JobSummary, withText: boolean) => ({
+  id: j.id, label: j.label, title: j.title, company: j.company, ...present(j.document, withText), parsed: j.parsed, userEdited: j.userEdited,
 });
 
 export function documentRoutes({ repo, storage, queue, maxUploadBytes }: DocumentRouteDeps): Router {
@@ -65,13 +74,13 @@ export function documentRoutes({ repo, storage, queue, maxUploadBytes }: Documen
 
   router.get("/resumes", async (req, res) => {
     const rows = await repo.listResumes(req.userId);
-    res.json({ resumes: rows.map((r) => ({ id: r.id, ...present(r.document, false) })) });
+    res.json({ resumes: rows.map((r) => presentResume(r, false)) });
   });
 
   router.get("/resumes/:id", async (req, res) => {
     const r = await repo.getResume(req.userId, idParam.parse(req.params.id));
     if (!r) throw new HttpError(404, "NOT_FOUND", "Resume not found");
-    res.json({ id: r.id, ...present(r.document, true) });
+    res.json(presentResume(r, true));
   });
 
   router.delete("/resumes/:id", async (req, res) => {
@@ -81,6 +90,32 @@ export function documentRoutes({ repo, storage, queue, maxUploadBytes }: Documen
     if (removed?.storagePath) await storage.remove(removed.storagePath);
     res.status(204).end();
   });
+
+  router.patch("/resumes/:id", async (req, res) => {
+    const id = idParam.parse(req.params.id);
+    const { parsed } = z.object({ parsed: resumeParsedSchema }).parse(req.body);
+    const ok = await repo.updateResume(req.userId, id, parsed, computeYearsOfExperience(parsed.experience).years);
+    if (!ok) throw new HttpError(404, "NOT_FOUND", "Resume not found");
+    res.json(presentResume((await repo.getResume(req.userId, id))!, false));
+  });
+
+  router.post("/resumes/:id/reparse", async (req, res) => {
+    const r = await repo.getResume(req.userId, idParam.parse(req.params.id));
+    if (!r) throw new HttpError(404, "NOT_FOUND", "Resume not found");
+    await requeue(r.document.id, r.document.raw_text);
+    res.status(202).json({ id: r.id, status: "extracted" });
+  });
+
+  /** Re-run parsing from the stored text, or extraction first when no text was ever extracted. */
+  async function requeue(documentId: string, rawText: string | null) {
+    if (rawText) {
+      await repo.setStatus(documentId, "extracted");
+      await queue.enqueue(PARSE_QUEUE, { documentId });
+    } else {
+      await repo.setStatus(documentId, "uploaded");
+      await queue.enqueue(EXTRACT_QUEUE, { documentId });
+    }
+  }
 
   // ---- jobs ----
   router.post("/jobs", upload.single("file"), async (req, res) => {
@@ -93,13 +128,32 @@ export function documentRoutes({ repo, storage, queue, maxUploadBytes }: Documen
 
   router.get("/jobs", async (req, res) => {
     const rows = await repo.listJobs(req.userId);
-    res.json({ jobs: rows.map((j) => ({ id: j.id, label: j.label, title: j.title, company: j.company, ...present(j.document, false) })) });
+    res.json({ jobs: rows.map((j) => presentJob(j, false)) });
   });
 
   router.get("/jobs/:id", async (req, res) => {
     const j = await repo.getJob(req.userId, idParam.parse(req.params.id));
     if (!j) throw new HttpError(404, "NOT_FOUND", "Job not found");
-    res.json({ id: j.id, label: j.label, title: j.title, company: j.company, ...present(j.document, true) });
+    res.json(presentJob(j, true));
+  });
+
+  router.patch("/jobs/:id", async (req, res) => {
+    const id = idParam.parse(req.params.id);
+    const body = z.object({
+      title: z.string().trim().max(200).nullable(),
+      company: z.string().trim().max(200).nullable(),
+      parsed: jobParsedSchema,
+    }).parse(req.body);
+    const ok = await repo.updateJob(req.userId, id, { ...body, title: body.title || null, company: body.company || null });
+    if (!ok) throw new HttpError(404, "NOT_FOUND", "Job not found");
+    res.json(presentJob((await repo.getJob(req.userId, id))!, false));
+  });
+
+  router.post("/jobs/:id/reparse", async (req, res) => {
+    const j = await repo.getJob(req.userId, idParam.parse(req.params.id));
+    if (!j) throw new HttpError(404, "NOT_FOUND", "Job not found");
+    await requeue(j.document.id, j.document.raw_text);
+    res.status(202).json({ id: j.id, status: "extracted" });
   });
 
   router.delete("/jobs/:id", async (req, res) => {

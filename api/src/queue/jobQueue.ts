@@ -9,6 +9,7 @@ export interface JobQueue {
 }
 
 export const EXTRACT_QUEUE = "extract-document";
+export const PARSE_QUEUE = "parse-document";
 
 /** Durable queue stored in Postgres: retries with backoff, survives API restarts, no Redis needed. */
 export async function startPgBossQueue(connectionString: string, handlers: Record<string, Handler>): Promise<JobQueue> {
@@ -37,8 +38,12 @@ export class InlineQueue implements JobQueue {
     this.pending.push(this.handlers[queue]!(payload).catch(() => undefined));
   }
   async drain() {
-    await Promise.all(this.pending);
-    this.pending = [];
+    // Handlers can enqueue follow-up work, so keep going until nothing is pending.
+    while (this.pending.length) {
+      const batch = this.pending;
+      this.pending = [];
+      await Promise.all(batch);
+    }
   }
   async stop() {
     await this.drain();

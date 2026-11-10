@@ -3,14 +3,22 @@ import { createPool } from "./db/pool.js";
 import { buildApp } from "./app.js";
 import { DocumentRepo } from "./documents/repo.js";
 import { FileStorage } from "./documents/storage.js";
-import { createExtractHandler } from "./documents/processor.js";
-import { EXTRACT_QUEUE, startPgBossQueue } from "./queue/jobQueue.js";
+import { createExtractHandler, createParseHandler } from "./documents/processor.js";
+import { EXTRACT_QUEUE, PARSE_QUEUE, startPgBossQueue, type JobQueue } from "./queue/jobQueue.js";
+import { createLlmClient } from "./llm/factory.js";
 
 const env = loadEnv();
 const pool = createPool(env.DATABASE_URL);
 const storage = new FileStorage(env.STORAGE_DIR);
-const queue = await startPgBossQueue(env.DATABASE_URL, {
-  [EXTRACT_QUEUE]: createExtractHandler(new DocumentRepo(pool), storage),
+const repo = new DocumentRepo(pool);
+const llm = createLlmClient(env);
+if (!llm) console.warn("LLM not configured (set GROQ_API_KEY): documents will be extracted but not parsed.");
+
+// The extract handler needs the queue to hand work to the parse step, and the queue needs the handlers.
+let queue!: JobQueue;
+queue = await startPgBossQueue(env.DATABASE_URL, {
+  [EXTRACT_QUEUE]: createExtractHandler(repo, storage, (documentId) => queue.enqueue(PARSE_QUEUE, { documentId })),
+  [PARSE_QUEUE]: createParseHandler(repo, llm),
 });
 
 const server = buildApp({ env, pool, storage, queue }).listen(env.PORT, "0.0.0.0", () => {

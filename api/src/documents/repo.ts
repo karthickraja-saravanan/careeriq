@@ -1,4 +1,5 @@
 import type pg from "pg";
+import type { JobParsed, ResumeParsed } from "../parsing/schemas.js";
 
 export type DocKind = "resume" | "job";
 export type DocStatus = "uploaded" | "extracting" | "extracted" | "parsing" | "embedding" | "ready" | "failed";
@@ -19,12 +20,26 @@ export interface JobSummary {
   label: string;
   title: string | null;
   company: string | null;
+  parsed: JobParsed | null;
+  userEdited: boolean;
   document: DocumentRow;
 }
 export interface ResumeSummary {
   id: string;
+  parsed: ResumeParsed | null;
+  yearsExperience: number | null;
+  userEdited: boolean;
   document: DocumentRow;
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toResume = ({ owner_id, parsed, years_experience, user_edited, ...document }: any): ResumeSummary => ({
+  id: owner_id,
+  parsed,
+  yearsExperience: years_experience === null ? null : Number(years_experience),
+  userEdited: user_edited,
+  document,
+});
 
 const DOC_COLS = "d.id, d.kind, d.original_filename, d.storage_path, d.status, d.error, d.raw_text, d.created_at";
 
@@ -88,32 +103,31 @@ export class DocumentRepo {
 
   async listResumes(userId: string): Promise<ResumeSummary[]> {
     const { rows } = await this.pool.query(
-      `SELECT r.id AS owner_id, ${DOC_COLS} FROM resumes r JOIN documents d ON d.id = r.document_id
+      `SELECT r.id AS owner_id, r.parsed, r.years_experience, r.user_edited, ${DOC_COLS} FROM resumes r JOIN documents d ON d.id = r.document_id
        WHERE r.user_id = $1 ORDER BY d.created_at DESC`,
       [userId],
     );
-    return rows.map(({ owner_id, ...document }) => ({ id: owner_id, document }));
+    return rows.map(toResume);
   }
 
   async getResume(userId: string, id: string): Promise<ResumeSummary | null> {
     const { rows } = await this.pool.query(
-      `SELECT r.id AS owner_id, ${DOC_COLS} FROM resumes r JOIN documents d ON d.id = r.document_id
+      `SELECT r.id AS owner_id, r.parsed, r.years_experience, r.user_edited, ${DOC_COLS} FROM resumes r JOIN documents d ON d.id = r.document_id
        WHERE r.user_id = $1 AND r.id = $2`,
       [userId, id],
     );
-    const row = rows[0];
-    if (!row) return null;
-    const { owner_id, ...document } = row;
-    return { id: owner_id, document };
+    return rows[0] ? toResume(rows[0]) : null;
   }
 
   async listJobs(userId: string): Promise<JobSummary[]> {
     const { rows } = await this.pool.query(
-      `SELECT j.id AS owner_id, j.label, j.title, j.company, ${DOC_COLS} FROM jobs j JOIN documents d ON d.id = j.document_id
+      `SELECT j.id AS owner_id, j.label, j.title, j.company, j.parsed, j.user_edited, ${DOC_COLS} FROM jobs j JOIN documents d ON d.id = j.document_id
        WHERE j.user_id = $1 ORDER BY j.created_at ASC`,
       [userId],
     );
-    return rows.map(({ owner_id, label, title, company, ...document }) => ({ id: owner_id, label, title, company, document }));
+    return rows.map(({ owner_id, label, title, company, parsed, user_edited, ...document }) => ({
+      id: owner_id, label, title, company, parsed, userEdited: user_edited, document,
+    }));
   }
 
   async getJob(userId: string, id: string): Promise<JobSummary | null> {
@@ -146,10 +160,43 @@ export class DocumentRepo {
 
   /** Worker-side lookup (not user-scoped: the job payload comes from our own queue, not from a request). */
   async getForProcessing(id: string) {
-    const { rows } = await this.pool.query<{ storage_path: string | null; raw_text: string | null; original_filename: string | null }>(
-      "SELECT storage_path, raw_text, original_filename FROM documents WHERE id = $1",
+    const { rows } = await this.pool.query<{ kind: DocKind; storage_path: string | null; raw_text: string | null; original_filename: string | null }>(
+      "SELECT kind, storage_path, raw_text, original_filename FROM documents WHERE id = $1",
       [id],
     );
     return rows[0] ?? null;
+  }
+
+  async saveResumeParse(documentId: string, parsed: ResumeParsed, years: number | null) {
+    await this.pool.query(
+      "UPDATE resumes SET parsed = $2, years_experience = $3, user_edited = false, version = version + 1 WHERE document_id = $1",
+      [documentId, JSON.stringify(parsed), years],
+    );
+  }
+
+  /** Title and company typed by the user at upload time win over what the model extracted. */
+  async saveJobParse(documentId: string, parsed: JobParsed) {
+    await this.pool.query(
+      `UPDATE jobs SET parsed = $2, user_edited = false,
+         title = COALESCE(NULLIF(title, ''), $3), company = COALESCE(NULLIF(company, ''), $4)
+       WHERE document_id = $1`,
+      [documentId, JSON.stringify(parsed), parsed.title, parsed.company],
+    );
+  }
+
+  async updateResume(userId: string, id: string, parsed: ResumeParsed, years: number | null): Promise<boolean> {
+    const r = await this.pool.query(
+      "UPDATE resumes SET parsed = $3, years_experience = $4, user_edited = true, version = version + 1 WHERE user_id = $1 AND id = $2",
+      [userId, id, JSON.stringify(parsed), years],
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+
+  async updateJob(userId: string, id: string, patch: { title: string | null; company: string | null; parsed: JobParsed }): Promise<boolean> {
+    const r = await this.pool.query(
+      "UPDATE jobs SET title = $3, company = $4, parsed = $5, user_edited = true WHERE user_id = $1 AND id = $2",
+      [userId, id, patch.title, patch.company, JSON.stringify(patch.parsed)],
+    );
+    return (r.rowCount ?? 0) > 0;
   }
 }
