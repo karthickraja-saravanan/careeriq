@@ -1,0 +1,22 @@
+Senior Backend Engineer
+Northwind Pay
+
+About the role
+We build payment infrastructure used by thousands of merchants. You will own services end to end.
+
+Responsibilities
+- Design and build backend services in TypeScript and Node.js
+- Model data in PostgreSQL and keep queries fast at scale
+- Build event-driven pipelines using Kafka
+- Mentor engineers and review code
+
+Requirements
+- 5+ years of backend engineering experience
+- Strong TypeScript and Node.js
+- PostgreSQL in production
+- Experience with Kafka or similar streaming systems
+- System design skills; mentoring experience
+
+Nice to have
+- AWS
+- Kubernetes

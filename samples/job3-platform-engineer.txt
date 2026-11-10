@@ -1,0 +1,17 @@
+Platform Engineer
+Orbital Cloud
+
+Responsibilities
+- Run and scale Kubernetes clusters on AWS
+- Own infrastructure as code with Terraform
+- Build CI/CD pipelines and developer tooling in Go or Python
+
+Requirements
+- 4+ years of infrastructure or platform experience
+- Kubernetes, Terraform, AWS
+- Go or Python
+- CI/CD
+
+Nice to have
+- Prometheus
+- Docker

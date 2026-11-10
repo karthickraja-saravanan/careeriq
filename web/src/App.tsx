@@ -16,6 +16,8 @@ const views = [
   { id: "interview", label: "Interview prep" },
 ] as const;
 
+const sampleViews = new Set(["dashboard", "compare", "assistant", "interview"]);
+
 const fromHash = () => (views.find((v) => v.id === location.hash.slice(1)) ?? views[0]).id as string;
 
 export function App() {
@@ -37,7 +39,7 @@ export function App() {
               <button key={v.id} className="tab" aria-current={view === v.id ? "page" : undefined} onClick={() => go(v.id)}>{v.label}</button>
             ))}
           </div>
-          <span className="sample-badge">Sample data</span>
+          {sampleViews.has(view) && <span className="sample-badge">Sample data</span>}
         </div>
       </nav>
       <main>

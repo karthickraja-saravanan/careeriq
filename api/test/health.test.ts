@@ -6,6 +6,8 @@ import { createPool } from "../src/db/pool.js";
 import { runMigrations } from "../src/db/migrate.js";
 import { loadEnv } from "../src/config/env.js";
 import path from "node:path";
+import { FileStorage } from "../src/documents/storage.js";
+import { InlineQueue } from "../src/queue/jobQueue.js";
 
 // Integration test: needs a Postgres with pgvector at TEST_DATABASE_URL.
 const url = process.env.TEST_DATABASE_URL;
@@ -17,7 +19,7 @@ describe.skipIf(!url)("health endpoints (integration)", () => {
 
   beforeAll(async () => {
     await runMigrations(pool, path.resolve(__dirname, "../migrations"));
-    const app = buildApp({ env: loadEnv({ DATABASE_URL: url!, LOG_LEVEL: "silent" }), pool });
+    const app = buildApp({ env: loadEnv({ DATABASE_URL: url!, LOG_LEVEL: "silent" }), pool, storage: new FileStorage("/tmp/careeriq-test"), queue: new InlineQueue({}) });
     server = app.listen(0);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v1`;
   });

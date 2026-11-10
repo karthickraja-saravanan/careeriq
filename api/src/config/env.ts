@@ -7,6 +7,7 @@ const schema = z.object({
   DATABASE_URL: z.string().url(),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   STORAGE_DIR: z.string().default("./storage"),
+  MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(5 * 1024 * 1024),
 });
 
 export type Env = z.infer<typeof schema>;
