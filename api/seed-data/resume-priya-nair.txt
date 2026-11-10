@@ -1,0 +1,21 @@
+Priya Nair
+Backend Engineer | priya.nair@example.com | Bengaluru
+Summary
+Backend engineer with 5 years of experience building APIs in TypeScript and Node.js on PostgreSQL.
+Skills
+TypeScript, Node.js, PostgreSQL, REST APIs, Docker, AWS (EC2, S3), React, Jest
+Experience
+Backend Engineer, Finlytics (2023 - present)
+- Built billing APIs handling 2M requests per day
+- Cut p95 latency by 40% by adding query indexes and caching
+Software Engineer, Cartwheel (2021 - 2023)
+- Shipped an order tracking service in Node.js and PostgreSQL
+- Introduced a Jest test suite, raising coverage from 20% to 78%
+Projects
+- Open-source CSV validator (1.2k GitHub stars)
+- Expense splitter: React frontend with an Express API
+Education
+B.Tech Computer Science, 2021
+Certifications
+AWS Cloud Practitioner
+

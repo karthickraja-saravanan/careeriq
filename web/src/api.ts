@@ -121,6 +121,8 @@ export async function streamAnswer(conversationId: string, content: string, h: S
 }
 
 export const api = {
+  seedDemoData: () => request<{ resumes: number; jobs: number }>("/settings/seed-demo-data", { method: "POST" }),
+  clearAllData: () => request<void>("/settings/data", { method: "DELETE" }),
   listConversations: () => request<{ conversations: Conversation[] }>("/conversations").then((r) => r.conversations),
   createConversation: () => request<Conversation>("/conversations", { method: "POST" }),
   conversationMessages: (id: string) => request<{ messages: ChatMessage[] }>(`/conversations/${id}/messages`).then((r) => r.messages),

@@ -5,6 +5,7 @@ import { Resumes } from "./views/Resumes";
 import { Jobs } from "./views/Jobs";
 import { Compare } from "./views/Compare";
 import { Assistant } from "./views/Assistant";
+import { Settings } from "./views/Settings";
 import { Interview } from "./views/Interview";
 
 const views = [
@@ -14,6 +15,7 @@ const views = [
   { id: "compare", label: "Compare" },
   { id: "assistant", label: "Assistant" },
   { id: "interview", label: "Interview prep" },
+  { id: "settings", label: "Settings" },
 ] as const;
 
 const sampleViews = new Set(["interview"]);
@@ -49,6 +51,7 @@ export function App() {
         {view === "compare" && <Compare go={go} />}
         {view === "assistant" && <Assistant go={go} />}
         {view === "interview" && <Interview />}
+        {view === "settings" && <Settings go={go} />}
       </main>
     </>
   );

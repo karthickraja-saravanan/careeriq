@@ -1,0 +1,18 @@
+Full Stack Engineer
+Lumen Health
+
+Responsibilities
+- Build patient-facing features in React and TypeScript
+- Build APIs in Node.js with GraphQL
+- Make every screen accessible (WCAG 2.1 AA)
+
+Requirements
+- 3+ years of full stack experience
+- React, TypeScript, Node.js
+- GraphQL
+- Accessibility practices
+
+Nice to have
+- Next.js
+- Playwright
+- Docker

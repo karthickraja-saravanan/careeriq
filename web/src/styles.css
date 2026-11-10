@@ -147,3 +147,5 @@ main { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column;
 .msg .chip { margin: 0 2px; }
 .source { margin: 0; padding: 12px 14px; border-left: 3px solid var(--primary); background: var(--cream); border-radius: 0 var(--r-md, 12px) var(--r-md, 12px) 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
 .pill[disabled] { opacity: 0.45; cursor: not-allowed; }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.card h2 { margin: 0; }

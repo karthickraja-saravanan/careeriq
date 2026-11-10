@@ -19,6 +19,7 @@ COPY web/package.json web/
 RUN npm ci -w api --omit=dev
 COPY --from=build /app/api/dist api/dist
 COPY api/migrations api/migrations
+COPY api/seed-data api/seed-data
 # Named volume inherits this ownership, so the non-root user can write uploads.
 RUN mkdir -p /app/storage /app/.models && chown node:node /app/storage /app/.models
 USER node

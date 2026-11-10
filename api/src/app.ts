@@ -19,6 +19,7 @@ import { searchRoutes } from "./routes/search.js";
 import { analysisRoutes } from "./routes/analyses.js";
 import { AnalysisService } from "./analysis/analyze.js";
 import type { LlmClient } from "./llm/types.js";
+import { settingsRoutes } from "./routes/settings.js";
 import { chatRoutes } from "./routes/chat.js";
 import { ChatRepo } from "./chat/repo.js";
 import { ChatService } from "./chat/service.js";
@@ -54,6 +55,7 @@ export function buildApp({ env, pool, storage, queue, embedder, llm }: AppDeps):
   const chatRepo = new ChatRepo(pool);
   const chat = new ChatService(pool, chatRepo, docs, analyses, embedder, llm, { warn: (o, m) => logger.warn(o, m) });
   app.use("/api/v1", demoUser, chatRoutes(chatRepo, chat));
+  app.use("/api/v1", demoUser, settingsRoutes(pool, docs, storage, queue));
   app.use("/api/v1", demoUser, documentRoutes({ repo: docs, storage, queue, maxUploadBytes: env.MAX_UPLOAD_BYTES }));
 
   app.use((_req, res) => {
