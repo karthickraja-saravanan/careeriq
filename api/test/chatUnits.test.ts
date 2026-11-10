@@ -77,3 +77,19 @@ describe("resolveResumeMentions", () => {
     expect(resolveResumeMentions("What am I missing?", resumes)).toEqual({ ids: [], unknown: [], text: "What am I missing?" });
   });
 });
+
+import { resolveJobMentions } from "../src/chat/jobRefs.js";
+
+describe("resolveJobMentions", () => {
+  const jobs = [{ id: "a", label: "Job #1", title: null, company: null }, { id: "b", label: "Job #2", title: null, company: null }];
+  it("resolves @J2 and @Job 2 and normalises the text", () => {
+    const r = resolveJobMentions("Compare @J2 with @job1 and @J2", jobs);
+    expect(r.ids).toEqual(["b", "a"]);
+    expect(r.text).toBe("Compare Job #2 with Job #1 and Job #2");
+  });
+  it("reports unknown jobs and ignores e-mail look-alikes", () => {
+    const r = resolveJobMentions("@J5 and me@J1.com", jobs);
+    expect(r.unknown).toEqual(["Job #5"]);
+    expect(r.ids).toEqual([]);
+  });
+});

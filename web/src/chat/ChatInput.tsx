@@ -2,8 +2,10 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ArrowUp, FileText, Square } from "lucide-react";
 import { motion } from "motion/react";
 
-export interface MentionableResume {
-  label: string; // CV1
+export interface Mentionable {
+  kind: "resume" | "job";
+  /** What gets typed after the @, e.g. CV1 or J2. */
+  token: string;
   name: string;
 }
 
@@ -22,12 +24,12 @@ function findTrigger(text: string, caret: number): Trigger | null {
   return { start: caret - m[3]!.length - 1, end: caret, query: m[3]!, ...(m[2] === "/" ? { slash: true } : {}) } as Trigger & { slash?: boolean };
 }
 
-const norm = (q: string) => q.toLowerCase().replace(/^r(?=\d)/, "cv");
+const norm = (q: string) => q.toLowerCase().replace(/^r(?=\d)/, "cv").replace(/^job/, "j");
 
 interface Props {
   busy: boolean;
-  /** Resumes that can be named with @CV1. */
-  resumes?: MentionableResume[];
+  /** Resumes and jobs that can be named with @CV1 or @J2. */
+  mentionables?: Mentionable[];
   disabled: boolean;
   onSend: (text: string) => Promise<boolean> | boolean;
   onStop: () => void;
@@ -35,7 +37,7 @@ interface Props {
 
 const MAX_HEIGHT = 200;
 
-export function ChatInput({ busy, disabled, resumes = [], onSend, onStop }: Props) {
+export function ChatInput({ busy, disabled, mentionables = [], onSend, onStop }: Props) {
   const [value, setValue] = useState("");
   const [caret, setCaret] = useState(0);
   const [pick, setPick] = useState(0);
@@ -54,15 +56,15 @@ export function ChatInput({ busy, disabled, resumes = [], onSend, onStop }: Prop
   const options = !trigger || dismissed === trigger.start
     ? []
     : trigger.slash
-      ? "resume".startsWith(trigger.query.toLowerCase()) ? resumes : []
-      : resumes.filter((r) => r.label.toLowerCase().startsWith(norm(trigger.query)) || r.name.toLowerCase().includes(trigger.query.toLowerCase()));
+      ? mentionables.filter((m) => (m.kind === "resume" ? "resume" : "job").startsWith(trigger.query.toLowerCase()))
+      : mentionables.filter((m) => m.token.toLowerCase().startsWith(norm(trigger.query)) || m.name.toLowerCase().includes(trigger.query.toLowerCase()));
   const open = options.length > 0 && !disabled;
   useEffect(() => setPick(0), [trigger?.start, trigger?.query, trigger?.slash]);
 
-  const insert = (r: MentionableResume) => {
+  const insert = (r: Mentionable) => {
     if (!trigger) return;
-    const next = `${value.slice(0, trigger.start)}@${r.label} ${value.slice(trigger.end)}`;
-    const pos = trigger.start + r.label.length + 2;
+    const next = `${value.slice(0, trigger.start)}@${r.token} ${value.slice(trigger.end)}`;
+    const pos = trigger.start + r.token.length + 2;
     setValue(next);
     setCaret(pos);
     requestAnimationFrame(() => { ref.current?.focus(); ref.current?.setSelectionRange(pos, pos); });
@@ -102,12 +104,12 @@ export function ChatInput({ busy, disabled, resumes = [], onSend, onStop }: Prop
     <div className="composer-wrap">
       <div className="composer-anchor">
       {open && (
-        <ul className="mention-list" role="listbox" aria-label="Include a resume">
+        <ul className="mention-list" role="listbox" aria-label="Include a resume or job">
           {options.map((r, i) => (
-            <li key={r.label} role="option" aria-selected={i === pick}>
+            <li key={r.token} role="option" aria-selected={i === pick}>
               <button type="button" className={i === pick ? "on" : ""} onMouseDown={(e) => e.preventDefault()} onMouseEnter={() => setPick(i)} onClick={() => insert(r)}>
                 <FileText size={15} aria-hidden="true" />
-                <span className="mention">{r.label}</span>
+                <span className="mention">{r.token}</span>
                 <span className="mention-name">{r.name}</span>
               </button>
             </li>
@@ -122,7 +124,7 @@ export function ChatInput({ busy, disabled, resumes = [], onSend, onStop }: Prop
           maxLength={2000}
           disabled={disabled}
           aria-label="Your question"
-          placeholder={disabled ? "Add your resume and a job to start chatting" : resumes.length > 0 ? "Ask anything. Type @ to include a resume, e.g. @CV1" : "Ask anything about your career..."}
+          placeholder={disabled ? "Add your resume and a job to start chatting" : mentionables.length > 0 ? "Ask anything. Type @ to include a resume or job, e.g. @CV1 or @J2" : "Ask anything about your career..."}
           role="combobox"
           aria-expanded={open}
           aria-autocomplete="list"

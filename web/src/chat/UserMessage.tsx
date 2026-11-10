@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { motion } from "motion/react";
 
-const MENTION = /(^|[^\w@])(@(?:CV|R)\d+)\b/gi;
+const MENTION = /(^|[^\w@])(@(?:CV|R|J|Job)\d+)\b/gi;
 
 /** Shows "@CV1" as a small badge so it is clear which resume the question was about. */
 function withMentions(text: string) {

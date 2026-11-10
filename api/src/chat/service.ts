@@ -8,7 +8,7 @@ import { retrieveBalanced } from "../retrieval/search.js";
 import type { AnalysisService } from "../analysis/analyze.js";
 import { sanitizeCitations } from "./citations.js";
 import { buildContext, estimateTokens, type ContextSource } from "./context.js";
-import { resolveJobRefs } from "./jobRefs.js";
+import { resolveJobMentions, resolveJobRefs } from "./jobRefs.js";
 import { resolveResumeMentions } from "./resumeRefs.js";
 import { CHAT_SYSTEM, NO_DOCUMENTS_REPLY, REWRITE_SYSTEM, buildChatUser, buildRewriteUser } from "./prompt.js";
 import type { ChatRepo } from "./repo.js";
@@ -63,6 +63,17 @@ export class ChatService {
     if (mentions.unknown.length) {
       throw new HttpError(400, "UNKNOWN_RESUME", `You don't have ${mentions.unknown.join(", ")}. Type @ to pick one of your resumes.`);
     }
+    const allJobs = await this.docs.listJobs(userId);
+    const jobMentions = resolveJobMentions(mentions.text, allJobs.map((j) => ({ id: j.id, label: j.label, title: j.title, company: j.company })));
+    if (jobMentions.unknown.length) {
+      throw new HttpError(400, "UNKNOWN_JOB", `You don't have ${jobMentions.unknown.join(", ")}. Type @ to pick one of your jobs.`);
+    }
+    const unreadyJobs = allJobs.filter((j) => jobMentions.ids.includes(j.id) && j.document.status !== "ready");
+    if (unreadyJobs.length) {
+      throw new HttpError(409, "JOB_NOT_READY", `${unreadyJobs.map((j) => j.label).join(", ")} is still being processed. Try again in a moment.`);
+    }
+    const questionText = jobMentions.text;
+
     const unready = allResumes.filter((r) => mentions.ids.includes(r.id) && r.document.status !== "ready");
     if (unready.length) {
       throw new HttpError(409, "RESUME_NOT_READY", `${unready.map((r) => r.label).join(", ")} is still being processed. Try again in a moment.`);
@@ -73,14 +84,14 @@ export class ChatService {
     await this.repo.addMessage(userId, conversationId, { role: "user", content: question });
     await this.repo.setTitleIfEmpty(userId, conversationId, question.length > 60 ? `${question.slice(0, 57)}...` : question);
 
-    const rewritten = await this.rewrite(userId, history, mentions.text);
-    const standalone = rewritten ?? mentions.text;
+    const rewritten = await this.rewrite(userId, history, questionText);
+    const standalone = rewritten ?? questionText;
     const tRewrite = Date.now();
 
-    const jobs = (await this.docs.listJobs(userId)).filter((j) => j.document.status === "ready");
+    const jobs = allJobs.filter((j) => j.document.status === "ready");
     const jobInfos = jobs.map((j) => ({ id: j.id, label: j.label, title: j.title, company: j.company }));
     // Refs are resolved on the original text and the rewritten one: "what about the second one?" resolves after rewriting.
-    const refs = [...new Set([...resolveJobRefs(question, jobInfos), ...resolveJobRefs(standalone, jobInfos)])];
+    const refs = [...new Set([...jobMentions.ids, ...resolveJobRefs(question, jobInfos), ...resolveJobRefs(standalone, jobInfos)])];
     const jobIds = refs.length ? refs : jobInfos.map((j) => j.id);
 
     // No mention means the newest resume, as before. Mentioned resumes share the resume quota between them.

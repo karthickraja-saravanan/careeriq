@@ -131,6 +131,37 @@ describe.skipIf(!TEST_DB_URL)("chat (integration)", () => {
     });
   });
 
+  describe("job mentions", () => {
+    const addJob = async (file: string) => {
+      await fetch(`${t.base}/jobs`, { method: "POST", headers: json, body: JSON.stringify({ text: readFileSync(samples(file), "utf8") }) });
+      await t.queue.drain();
+    };
+
+    it("restricts retrieval to the mentioned job and normalises the label", async () => {
+      await seedDocs();
+      await addJob("job2-full-stack-engineer.txt");
+      const id = await newConversation();
+      t.llm!.streams = ["ok"];
+      const events = await readSse(await ask(id, "Am I a fit for @J2?"));
+      expect(events[0]!.data.jobIds).toHaveLength(1);
+      const prompt = t.llm!.streamCalls.at(-1)!.messages.at(-1)!.content;
+      expect(prompt).toContain("Question: Am I a fit for Job #2?");
+      expect(prompt).toMatch(/\[J2-\d+\]/);
+      expect(prompt).not.toMatch(/\[J1-\d+\]/);
+    });
+
+    it("combines resume and job mentions, and rejects an unknown job before storing anything", async () => {
+      await seedDocs();
+      const id = await newConversation();
+      t.llm!.streams = ["ok"];
+      const ok = await readSse(await ask(id, "@CV1 vs @J1"));
+      expect(ok[0]!.data).toMatchObject({ jobIds: [expect.any(String)], resumeIds: [expect.any(String)] });
+      const bad = await ask(id, "tell me about @J9");
+      expect(bad.status).toBe(400);
+      expect((await bad.json()).error.code).toBe("UNKNOWN_JOB");
+    });
+  });
+
   it("answers without calling the model when there are no documents", async () => {
     const id = await newConversation();
     const events = await readSse(await ask(id, "Am I a fit?"));
