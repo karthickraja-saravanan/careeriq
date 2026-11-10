@@ -16,7 +16,7 @@ const views = [
   { id: "interview", label: "Interview prep" },
 ] as const;
 
-const sampleViews = new Set(["assistant", "interview"]);
+const sampleViews = new Set(["interview"]);
 
 const fromHash = () => (views.find((v) => v.id === location.hash.slice(1)) ?? views[0]).id as string;
 
@@ -47,7 +47,7 @@ export function App() {
         {view === "resume" && <Resumes />}
         {view === "jobs" && <Jobs />}
         {view === "compare" && <Compare go={go} />}
-        {view === "assistant" && <Assistant />}
+        {view === "assistant" && <Assistant go={go} />}
         {view === "interview" && <Interview />}
       </main>
     </>

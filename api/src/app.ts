@@ -19,6 +19,9 @@ import { searchRoutes } from "./routes/search.js";
 import { analysisRoutes } from "./routes/analyses.js";
 import { AnalysisService } from "./analysis/analyze.js";
 import type { LlmClient } from "./llm/types.js";
+import { chatRoutes } from "./routes/chat.js";
+import { ChatRepo } from "./chat/repo.js";
+import { ChatService } from "./chat/service.js";
 
 export interface AppDeps {
   env: Env;
@@ -32,12 +35,12 @@ export interface AppDeps {
 export function buildApp({ env, pool, storage, queue, embedder, llm }: AppDeps): Express {
   const app = express();
 
-  app.use(
-    pinoHttp({
-      level: env.LOG_LEVEL,
-      genReqId: (req) => (req.headers["x-request-id"] as string | undefined) ?? randomUUID(),
-    }),
-  );
+  const httpLogger = pinoHttp({
+    level: env.LOG_LEVEL,
+    genReqId: (req) => (req.headers["x-request-id"] as string | undefined) ?? randomUUID(),
+  });
+  const logger = httpLogger.logger;
+  app.use(httpLogger);
   app.use(helmet());
   app.use(cors({ origin: env.CORS_ORIGIN.split(",") }));
   app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: true, legacyHeaders: false }));
@@ -46,7 +49,11 @@ export function buildApp({ env, pool, storage, queue, embedder, llm }: AppDeps):
   app.use("/api/v1", healthRouter(pool));
   const docs = new DocumentRepo(pool);
   app.use("/api/v1", demoUser, searchRoutes(pool, embedder));
-  app.use("/api/v1", demoUser, analysisRoutes(new AnalysisService(pool, docs, llm, env.LLM_MODEL_MAIN)));
+  const analyses = new AnalysisService(pool, docs, llm, env.LLM_MODEL_MAIN);
+  app.use("/api/v1", demoUser, analysisRoutes(analyses));
+  const chatRepo = new ChatRepo(pool);
+  const chat = new ChatService(pool, chatRepo, docs, analyses, embedder, llm, { warn: (o, m) => logger.warn(o, m) });
+  app.use("/api/v1", demoUser, chatRoutes(chatRepo, chat));
   app.use("/api/v1", demoUser, documentRoutes({ repo: docs, storage, queue, maxUploadBytes: env.MAX_UPLOAD_BYTES }));
 
   app.use((_req, res) => {

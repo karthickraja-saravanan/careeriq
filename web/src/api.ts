@@ -77,7 +77,55 @@ const fileForm = (file: File, fields: Record<string, string> = {}) => {
   return f;
 };
 
+export interface Source { cite: string; title: string; section: string; content: string }
+export interface Conversation { id: string; title: string | null; createdAt: string }
+export interface ChatMessage { id: string; role: "user" | "assistant"; content: string; citations: Source[] | null; latencyMs?: Record<string, number> | null }
+export interface ChatDone { messageId: string; content: string; citations: Source[]; grounded: boolean; latencyMs: Record<string, number> }
+
+export interface StreamHandlers {
+  onMeta?: (m: { rewritten: string | null }) => void;
+  onToken: (text: string) => void;
+  onDone: (d: ChatDone) => void;
+}
+
+/** Ask a question and read the answer as it streams in (server-sent events over fetch). Throws on any failure. */
+export async function streamAnswer(conversationId: string, content: string, h: StreamHandlers, signal?: AbortSignal): Promise<void> {
+  const res = await fetch(`/api/v1/conversations/${conversationId}/messages`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ content }), signal });
+  if (!res.ok || !res.body) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error?.message ?? `Request failed (${res.status})`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finished = false;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let end: number;
+    while ((end = buffer.indexOf("\n\n")) >= 0) {
+      const block = buffer.slice(0, end);
+      buffer = buffer.slice(end + 2);
+      const event = /^event: (.*)$/m.exec(block)?.[1];
+      const raw = /^data: (.*)$/m.exec(block)?.[1];
+      if (!event || raw === undefined) continue;
+      const data = JSON.parse(raw);
+      if (event === "meta") h.onMeta?.(data);
+      else if (event === "token") h.onToken(data.text);
+      else if (event === "done") { finished = true; h.onDone(data); }
+      else if (event === "error") throw new Error(data.message ?? "Something went wrong");
+    }
+  }
+  if (!finished) throw new Error("The answer was cut off. Please try again.");
+}
+
 export const api = {
+  listConversations: () => request<{ conversations: Conversation[] }>("/conversations").then((r) => r.conversations),
+  createConversation: () => request<Conversation>("/conversations", { method: "POST" }),
+  conversationMessages: (id: string) => request<{ messages: ChatMessage[] }>(`/conversations/${id}/messages`).then((r) => r.messages),
+  deleteConversation: (id: string) => request<void>(`/conversations/${id}`, { method: "DELETE" }),
+
   listResumes: () => request<{ resumes: ResumeInfo[] }>("/resumes").then((r) => r.resumes),
   getResume: (id: string) => request<ResumeInfo>(`/resumes/${id}`),
   saveResume: (id: string, parsed: ResumeParsed) => request<ResumeInfo>(`/resumes/${id}`, { method: "PATCH", headers: JSON_HEADERS, body: JSON.stringify({ parsed }) }),

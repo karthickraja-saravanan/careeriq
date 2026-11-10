@@ -12,7 +12,7 @@ import { DocumentRepo } from "../src/documents/repo.js";
 import { createEmbedHandler, createExtractHandler, createParseHandler } from "../src/documents/processor.js";
 import { EMBED_QUEUE, EXTRACT_QUEUE, InlineQueue, PARSE_QUEUE, type JobQueue } from "../src/queue/jobQueue.js";
 import type { Embedder } from "../src/embeddings/types.js";
-import type { JsonCompletionRequest, LlmClient } from "../src/llm/types.js";
+import type { JsonCompletionRequest, LlmClient, StreamRequest } from "../src/llm/types.js";
 
 export const TEST_DB_URL = process.env.TEST_DATABASE_URL;
 export const samples = (name: string) => path.resolve(__dirname, "../../samples", name);
@@ -21,6 +21,15 @@ export const fixtures = (name: string) => path.resolve(__dirname, "fixtures", na
 /** Scripted LLM: returns queued responses in order, or a default by document type. Records every request. */
 export class FakeLlm implements LlmClient {
   calls: JsonCompletionRequest[] = [];
+  /** Streamed answers are scripted separately from JSON calls: queue strings (or an Error) here. */
+  streams: (string | Error)[] = [];
+  streamCalls: StreamRequest[] = [];
+  async *streamChat(req: StreamRequest) {
+    this.streamCalls.push(req);
+    const next = this.streams.shift() ?? "I could not find that in your documents.";
+    if (next instanceof Error) throw next;
+    for (const part of next.match(/.{1,12}/gs) ?? []) yield part;
+  }
   constructor(public responses: (string | Error)[] = []) {}
   async completeJson(req: JsonCompletionRequest) {
     this.calls.push(req);
@@ -88,7 +97,7 @@ export async function startTestApp(overrides: Record<string, string> = {}, llm: 
   return {
     base, pool, repo, queue, storage, storageDir, llm, embedder,
     reset: async () => {
-      await pool.query("TRUNCATE documents CASCADE");
+      await pool.query("TRUNCATE documents, conversations CASCADE");
       for (const f of await readdir(storageDir)) await rm(path.join(storageDir, f));
     },
     close: async () => { server.close(); await pool.end(); },

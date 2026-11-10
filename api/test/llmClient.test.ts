@@ -53,4 +53,26 @@ describe("OpenAI-compatible client", () => {
     const { c } = client([new Response(JSON.stringify({ choices: [] }), { status: 200 })]);
     await expect(c.completeJson(req)).rejects.toThrow(/empty/);
   });
+
+  describe("streamChat", () => {
+    const sse = (...chunks: string[]) =>
+      new Response(chunks.map((c) => `data: ${JSON.stringify({ choices: [{ delta: { content: c } }] })}\n\n`).join("") + "data: [DONE]\n\n", { status: 200 });
+    const collect = async (it: AsyncIterable<string>) => { let out = ""; for await (const p of it) out += p; return out; };
+    const msgs = [{ role: "user" as const, content: "hi" }];
+
+    it("yields content deltas and requests streaming", async () => {
+      const { c, sent } = client([sse("Hel", "lo ", "[R1]")]);
+      expect(await collect(c.streamChat({ tier: "main", messages: msgs }))).toBe("Hello [R1]");
+      expect(sent[0]!.body).toMatchObject({ stream: true, model: "big" });
+    });
+    it("retries a 429 before streaming starts", async () => {
+      const { c, sleeps } = client([new Response("", { status: 429 }), sse("ok")]);
+      expect(await collect(c.streamChat({ tier: "main", messages: msgs }))).toBe("ok");
+      expect(sleeps).toHaveLength(1);
+    });
+    it("reports an unreachable provider as LlmUnavailableError", async () => {
+      const { c } = client([new Error("net"), new Error("net"), new Error("net"), new Error("net")]);
+      await expect(collect(c.streamChat({ tier: "main", messages: msgs }))).rejects.toBeInstanceOf(LlmUnavailableError);
+    });
+  });
 });
