@@ -3,7 +3,7 @@ import { AiButton } from "../AiButton";
 import { useEffect, useState } from "react";
 import { api, type InterviewPrep } from "../api";
 import { PageHead } from "../ui";
-import { readyJobs, useCareerData } from "../useCareerData";
+import { readyJobs, readyResumes, resumeOption, useCareerData } from "../useCareerData";
 
 const KIND: Record<string, string> = { experience: "From your resume", gap: "Gap", technical: "Technical", behavioral: "Behavioral" };
 
@@ -11,6 +11,7 @@ export function Interview({ go }: { go: (v: string) => void }) {
   const { data } = useCareerData();
   const [preps, setPreps] = useState<InterviewPrep[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [resumeSel, setResumeSel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openCite, setOpenCite] = useState<string | null>(null);
@@ -20,15 +21,17 @@ export function Interview({ go }: { go: (v: string) => void }) {
   if (!data) return <PageHead title="Interview prep" lead="Loading your documents…" />;
   const jobs = readyJobs(data);
   const job = jobs.find((j) => j.id === selected) ?? jobs[0];
-  const prep = job ? preps.find((p) => p.jobId === job.id) : undefined;
-  const resumeReady = data.resume?.status === "ready";
+  const resumes = readyResumes(data);
+  const resume = resumes.find((r) => r.id === resumeSel) ?? resumes[0];
+  const prep = job && resume ? preps.find((p) => p.jobId === job.id && p.resumeId === resume.id) : undefined;
+  const resumeReady = resumes.length > 0;
 
   const generate = async () => {
     if (!job) return;
     setBusy(true); setError(null); setOpenCite(null);
     try {
-      const p = await api.generateInterviewPrep(job.id);
-      setPreps((l) => [...l.filter((x) => x.jobId !== job.id), p]);
+      const p = await api.generateInterviewPrep(job.id, resume?.id);
+      setPreps((l) => [...l.filter((x) => !(x.jobId === p.jobId && x.resumeId === p.resumeId)), p]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -49,6 +52,14 @@ export function Interview({ go }: { go: (v: string) => void }) {
           <div className="pill-select" role="group" aria-label="Choose a role">
             {jobs.map((j) => (<button key={j.id} className="pill" aria-pressed={j.id === job?.id} onClick={() => { setSelected(j.id); setOpenCite(null); setError(null); }}>{j.label} · {j.company ?? j.title ?? "Job"}</button>))}
           </div>
+          {resumes.length > 1 && (
+            <label className="compare-pick">
+              <span className="label">Prepare using resume</span>
+              <select className="select" value={resume?.id ?? ""} onChange={(e) => { setResumeSel(e.target.value); setOpenCite(null); }}>
+                {resumes.map((r) => <option key={r.id} value={r.id}>{resumeOption(r)}</option>)}
+              </select>
+            </label>
+          )}
           {error && <p role="alert" className="chip bad notice">{error}</p>}
           {!prep ? (
             <div className="card">

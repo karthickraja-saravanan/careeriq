@@ -60,6 +60,42 @@ describe.skipIf(!TEST_DB_URL)("match analysis (integration)", () => {
     expect(report.sources.R2.content).toContain("TypeScript");
   });
 
+  it("keeps a separate analysis per resume and job pair", async () => {
+    const first = await upload();
+    const second = await upload(); // a second resume: any number can be uploaded
+    const jobId = await addJob();
+    t.llm!.responses = [judge(), judge({ strengths: ["Second resume strength [R2]"] })];
+    const a1 = await (await fetch(`${t.base}/analyses`, { method: "POST", headers: json, body: JSON.stringify({ jobId, resumeId: first }) })).json();
+    const a2 = await (await fetch(`${t.base}/analyses`, { method: "POST", headers: json, body: JSON.stringify({ jobId, resumeId: second }) })).json();
+    expect(a1.resumeId).toBe(first);
+    expect(a2.resumeId).toBe(second);
+    expect(a1.id).not.toBe(a2.id);
+
+    const list = (await (await fetch(`${t.base}/analyses`)).json()).analyses as { resumeId: string; jobId: string; stale: boolean }[];
+    expect(list.map((x) => x.resumeId).sort()).toEqual([first, second].sort());
+    expect(list.every((x) => x.jobId === jobId && !x.stale)).toBe(true);
+
+    // re-running one pair replaces only that pair
+    t.llm!.responses = [judge()];
+    await fetch(`${t.base}/analyses`, { method: "POST", headers: json, body: JSON.stringify({ jobId, resumeId: first }) });
+    expect(((await (await fetch(`${t.base}/analyses`)).json()).analyses as unknown[]).length).toBe(2);
+  });
+
+  it("defaults to the newest resume and rejects resumes that are not the user's", async () => {
+    await upload();
+    const newest = await upload();
+    const jobId = await addJob();
+    t.llm!.responses = [judge()];
+    expect((await (await analyze(jobId)).json()).resumeId).toBe(newest);
+
+    expect((await fetch(`${t.base}/analyses`, { method: "POST", headers: json, body: JSON.stringify({ jobId, resumeId: "00000000-0000-0000-0000-0000000000aa" }) })).status).toBe(404);
+    await t.pool.query("INSERT INTO users (id, email, display_name) VALUES ('00000000-0000-0000-0000-000000000002', 'other@x.test', 'Other') ON CONFLICT DO NOTHING");
+    const other = await t.repo.createResume("00000000-0000-0000-0000-000000000002", { filename: "x.txt", mime: "text/plain", storagePath: null, sha256: "x", rawText: "private" });
+    expect((await fetch(`${t.base}/analyses`, { method: "POST", headers: json, body: JSON.stringify({ jobId, resumeId: other.resumeId }) })).status).toBe(404);
+    expect((await fetch(`${t.base}/analyses`, { method: "POST", headers: json, body: JSON.stringify({ jobId, resumeId: "nope" }) })).status).toBe(400);
+    await t.pool.query("DELETE FROM users WHERE id = '00000000-0000-0000-0000-000000000002'");
+  });
+
   it("sends the resume as labelled chunks and treats it as data", async () => {
     await upload();
     const jobId = await addJob();

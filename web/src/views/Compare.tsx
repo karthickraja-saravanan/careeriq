@@ -3,7 +3,7 @@ import { AiButton } from "../AiButton";
 import { useState } from "react";
 import type { AnalysisInfo, JobInfo, MatchReport, RequirementResult, Verdict } from "../api";
 import { Bar, Bullets, PageHead, Ring, scoreTone } from "../ui";
-import { needsAnalysis, readyJobs, useCareerData } from "../useCareerData";
+import { resumeLabel, useCareerData } from "../useCareerData";
 
 const VERDICT: Record<Verdict, { label: string; cls: string; mark: string }> = {
   met: { label: "Evidenced", cls: "good", mark: "✓" },
@@ -11,55 +11,68 @@ const VERDICT: Record<Verdict, { label: string; cls: string; mark: string }> = {
   missing: { label: "No evidence", cls: "bad", mark: "✕" },
 };
 
-export function Compare({ go }: { go: (v: string) => void }) {
-  const { data, error, busyJobs, analyze } = useCareerData();
-  const [selected, setSelected] = useState<string | null>(null);
+export function Compare({ go, selectedId }: { go: (v: string) => void; selectedId: string | null }) {
+  const { data, error, isBusy, analyze } = useCareerData();
 
-  if (!data) return <PageHead title="Compare and close gaps" lead="Loading your documents…" />;
-  const jobs = readyJobs(data);
-  const job = jobs.find((j) => j.id === selected) ?? jobs[0];
-  const analysis = job ? data.analyses.find((a) => a.jobId === job.id) : undefined;
-  const todo = needsAnalysis(data);
+  if (!data) return <PageHead title="Comparisons" lead="Loading your documents…" />;
+
+  const jobById = new Map(data.jobs.map((j) => [j.id, j]));
+  const resumeById = new Map(data.resumes.map((r) => [r.id, r]));
+  const rows = [...data.analyses]
+    .filter((a) => jobById.has(a.jobId) && resumeById.has(a.resumeId))
+    .sort((x, y) => +new Date(y.createdAt) - +new Date(x.createdAt));
+  const selected = rows.find((a) => a.id === selectedId) ?? rows[0];
+  const job = selected ? jobById.get(selected.jobId) : undefined;
+  const resume = selected ? resumeById.get(selected.resumeId) : undefined;
+
+  const lead = "Each comparison pairs one resume with one job. A skill only counts as matched when the resume text backs it up; anything else counts as missing.";
 
   return (
     <>
-      <PageHead
-        title="Compare and close gaps"
-        lead="Each skill is judged against your resume. A skill only counts as matched when the resume text backs it up; anything else counts as missing."
-        action={todo.length > 1 ? <AiButton busy={busyJobs.size > 0} busyLabel="Analyzing…" onClick={() => void analyze(todo)}>{`Analyze all (${todo.length})`}</AiButton> : undefined}
-      />
+      <PageHead title="Comparisons" lead={lead} action={<button className="btn secondary" onClick={() => go("jobs")}>New comparison</button>} />
       {error && <p role="alert" className="chip bad notice">{error}</p>}
-      {!data.resume || data.resume.status !== "ready" ? (
-        <Empty title={data.resume ? "Your resume is still being processed" : "Add your resume first"} text="Comparison needs a parsed resume." action="Go to Resume" onClick={() => go("resume")} />
-      ) : jobs.length === 0 ? (
-        <Empty title="Add a job to compare" text="Paste or upload at least one job description." action="Go to Jobs" onClick={() => go("jobs")} />
+      {rows.length === 0 ? (
+        <div className="dropzone">
+          <h2>No comparisons yet</h2>
+          <p className="caption">
+            {data.resumes.length === 0 ? "Add a resume first, then pick a job and compare." : data.jobs.length === 0 ? "Add a job, then pick a resume and compare." : "Open Jobs, choose a job and a resume, then press Compare."}
+          </p>
+          <button className="btn" onClick={() => go(data.resumes.length === 0 ? "resume" : "jobs")}>{data.resumes.length === 0 ? "Go to Resume" : "Go to Jobs"}</button>
+        </div>
       ) : (
-        <>
-          <div className="pill-select" role="group" aria-label="Choose a role">
-            {jobs.map((j) => (
-              <button key={j.id} className="pill" aria-pressed={j.id === job!.id} onClick={() => setSelected(j.id)}>
-                {j.label} · {j.company ?? j.title ?? "Untitled"}
-              </button>
-            ))}
+        <div className="cmp-layout">
+          <nav className="cmp-list" aria-label="Comparisons">
+            <span className="label">{rows.length} {rows.length === 1 ? "comparison" : "comparisons"}</span>
+            {rows.map((a) => {
+              const j = jobById.get(a.jobId)!;
+              const r = resumeById.get(a.resumeId)!;
+              const tone = scoreTone(a.score);
+              return (
+                <button key={a.id} type="button" className="cmp-item" aria-current={a.id === selected?.id ? "true" : undefined} onClick={() => go(`compare/${a.id}`)}>
+                  <Ring score={a.score} />
+                  <span className="cmp-text">
+                    <strong>{j.title ?? "Untitled role"}</strong>
+                    <span className="caption">{j.label}{j.company ? ` · ${j.company}` : ""}</span>
+                    <span className="caption">Resume: {resumeLabel(r)}</span>
+                    <span className="row" style={{ gap: 6 }}>
+                      <span className="chip" style={{ color: tone.color }}>{tone.label}</span>
+                      {a.stale && <span className="chip warn">Out of date</span>}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="cmp-detail" key={selected!.id}>
+            <div className="card tight cmp-head">
+              <span className="label">Comparing</span>
+              <p><strong>{resume ? resumeLabel(resume) : "Resume"}</strong> <span className="caption">({resume?.filename ?? "sample data"})</span> with <strong>{job?.label}{job?.title ? ` · ${job.title}` : ""}</strong>{job?.company ? ` at ${job.company}` : ""}</p>
+            </div>
+            <Report job={job!} analysis={selected!} busy={isBusy(selected!.jobId, selected!.resumeId)} onRerun={() => void analyze([selected!.jobId], selected!.resumeId)} />
           </div>
-          {analysis ? (
-            <Report job={job!} analysis={analysis} busy={busyJobs.has(job!.id)} onRerun={() => void analyze([job!.id])} />
-          ) : (
-            <Empty
-              title={busyJobs.has(job!.id) ? "Analyzing…" : "Not analyzed yet"}
-              text={busyJobs.has(job!.id) ? "Checking each requirement against your resume. This takes a few seconds." : "Check this role's requirements against your resume."}
-              action="Analyze this role" busy={busyJobs.has(job!.id)} onClick={() => void analyze([job!.id])}
-            />
-          )}
-        </>
+        </div>
       )}
     </>
-  );
-}
-
-function Empty({ title, text, action, onClick, busy }: { title: string; text: string; action: string; onClick: () => void; busy?: boolean }) {
-  return (
-    <div className="dropzone"><h2>{title}</h2><p className="caption">{text}</p><AiButton busy={busy} busyLabel="Analyzing…" onClick={onClick}>{action}</AiButton></div>
   );
 }
 

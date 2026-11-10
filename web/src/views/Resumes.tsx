@@ -12,17 +12,50 @@ export function Resumes() {
   const { items, error, refresh } = useAsyncList(api.listResumes, anyPending);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+
+  const upload = async (files: FileList | File[] | null | undefined) => {
+    if (!files?.length) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      for (const file of Array.from(files)) await api.uploadResume(file);
+      if (input.current) input.current.value = "";
+      await refresh();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <PageHead title="Your resumes" lead="Upload as many resumes as you like, for example one per kind of role. We extract the text and pull out skills and experience. Check each result and correct anything that is wrong." />
+      <div className="dropzone" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void upload(e.dataTransfer.files); }}>
+        <h2>{items?.length ? "Add another resume" : "Drop a resume here"}</h2>
+        <p className="caption">PDF, DOCX or TXT, up to 5 MB each. Scanned images are not supported.</p>
+        <input id="resume-file" ref={input} type="file" accept=".pdf,.docx,.txt" multiple hidden onChange={(e) => void upload(e.target.files)} />
+        <button className="btn" disabled={busy} onClick={() => input.current?.click()}>{busy ? "Uploading…" : "Choose files"}</button>
+      </div>
+      {(message || error) && <p role="alert" className="chip bad notice">{message ?? error}</p>}
+      {items?.map((r) => <ResumeCard key={r.id} resume={r} onChanged={refresh} />)}
+    </>
+  );
+}
+
+function ResumeCard({ resume: current, onChanged }: { resume: ResumeInfo; onChanged: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [rawText, setRawText] = useState<string | null>(null);
-  const input = useRef<HTMLInputElement>(null);
-  const current = items?.[0];
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
     setMessage(null);
     try {
       await action();
-      await refresh();
+      await onChanged();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -30,55 +63,37 @@ export function Resumes() {
     }
   }
 
-  const upload = (file: File | undefined) => {
-    if (!file) return;
-    void run(async () => {
-      for (const old of items ?? []) await api.deleteResume(old.id); // one active resume for now
-      setEditing(false); setRawText(null);
-      await api.uploadResume(file);
-      if (input.current) input.current.value = "";
-    });
+  const save = (parsed: ResumeParsed) => void run(async () => { await api.saveResume(current.id, parsed); setEditing(false); });
+  const remove = () => {
+    if (window.confirm("Delete this resume and its comparisons? This cannot be undone.")) void run(() => api.deleteResume(current.id));
   };
 
-  const save = (parsed: ResumeParsed) => void run(async () => { await api.saveResume(current!.id, parsed); setEditing(false); });
-
   return (
-    <>
-      <PageHead title="Your resume" lead="Upload a PDF or DOCX. We extract the text and pull out your skills and experience. Check the result and correct anything that is wrong." />
-      <div className="dropzone" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); upload(e.dataTransfer.files[0]); }}>
-        <h2>{current ? "Replace your resume" : "Drop a resume here"}</h2>
-        <p className="caption">PDF, DOCX or TXT, up to 5 MB. Scanned images are not supported.</p>
-        <input id="resume-file" ref={input} type="file" accept=".pdf,.docx,.txt" hidden onChange={(e) => upload(e.target.files?.[0])} />
-        <button className="btn" disabled={busy} onClick={() => input.current?.click()}>{busy ? "Working…" : "Choose file"}</button>
+    <section className="card">
+      <div className="row spread">
+        <div><h2>{current.parsed?.name ?? current.filename ?? "Resume"}</h2><p className="caption">{current.filename} · uploaded {new Date(current.createdAt).toLocaleString()}</p></div>
+        <div className="row">
+          <StatusChip d={current} edited={current.userEdited} />
+          {current.status === "ready" && !editing && <button className="btn secondary" onClick={() => setEditing(true)}>Edit</button>}
+          {(current.status === "ready" || current.status === "failed") && <AiButton variant="secondary" icon={RefreshCw} busy={busy} busyLabel="Reparsing…" onClick={() => void run(() => api.reparseResume(current.id))}>Reparse</AiButton>}
+          <button className="btn secondary" disabled={busy} onClick={remove}>Delete</button>
+        </div>
       </div>
-      {(message || error) && <p role="alert" className="chip bad notice">{message ?? error}</p>}
-      {current && (
-        <section className="card">
-          <div className="row spread">
-            <div><h2>{current.parsed?.name ?? current.filename ?? "Resume"}</h2><p className="caption">{current.filename} · uploaded {new Date(current.createdAt).toLocaleString()}</p></div>
-            <div className="row">
-              <StatusChip d={current} edited={current.userEdited} />
-              {current.status === "ready" && !editing && <button className="btn secondary" onClick={() => setEditing(true)}>Edit</button>}
-              {(current.status === "ready" || current.status === "failed") && <AiButton variant="secondary" icon={RefreshCw} busy={busy} busyLabel="Reparsing…" onClick={() => void run(() => api.reparseResume(current.id))}>Reparse</AiButton>}
-              <button className="btn secondary" onClick={() => void run(async () => { await api.deleteResume(current.id); setEditing(false); })}>Delete</button>
-            </div>
-          </div>
-          {current.status === "failed" && <p role="alert" className="chip bad notice">{current.error}</p>}
-          {isPending(current.status) && <p className="caption">Reading your resume. This takes a few seconds.</p>}
-          {current.parsed && (editing
-            ? <ResumeEditor value={current.parsed} saving={busy} onSave={save} onCancel={() => setEditing(false)} />
-            : <ResumeView r={current} />)}
-          {current.status !== "failed" && !isPending(current.status) && (
-            <div>
-              <button className="btn secondary" onClick={async () => setRawText(rawText === null ? ((await api.getResume(current.id)).text ?? "") : null)}>
-                {rawText === null ? "Show extracted text" : "Hide extracted text"}
-              </button>
-              {rawText !== null && <pre className="extract" style={{ marginTop: 12 }}>{rawText}</pre>}
-            </div>
-          )}
-        </section>
+      {message && <p role="alert" className="chip bad notice">{message}</p>}
+      {current.status === "failed" && <p role="alert" className="chip bad notice">{current.error}</p>}
+      {isPending(current.status) && <p className="caption">Reading your resume. This takes a few seconds.</p>}
+      {current.parsed && (editing
+        ? <ResumeEditor value={current.parsed} saving={busy} onSave={save} onCancel={() => setEditing(false)} />
+        : <ResumeView r={current} />)}
+      {current.status !== "failed" && !isPending(current.status) && (
+        <div>
+          <button className="btn secondary" onClick={async () => setRawText(rawText === null ? ((await api.getResume(current.id)).text ?? "") : null)}>
+            {rawText === null ? "Show extracted text" : "Hide extracted text"}
+          </button>
+          {rawText !== null && <pre className="extract" style={{ marginTop: 12 }}>{rawText}</pre>}
+        </div>
       )}
-    </>
+    </section>
   );
 }
 

@@ -37,7 +37,7 @@ export interface InterviewReport {
   sources: Record<string, { section: string; content: string }>;
   inputs: { resumeVersion: number; jobHash: string; promptVersion: string; model: string };
 }
-export interface InterviewRow { id: string; jobId: string; report: InterviewReport; createdAt: Date; stale: boolean }
+export interface InterviewRow { id: string; jobId: string; resumeId: string; report: InterviewReport; createdAt: Date; stale: boolean }
 
 const MAX_QUESTIONS = 8;
 
@@ -68,9 +68,10 @@ export class InterviewService {
     private readonly modelName: string,
   ) {}
 
-  async generate(userId: string, jobId: string): Promise<InterviewRow> {
+  async generate(userId: string, jobId: string, resumeId?: string): Promise<InterviewRow> {
     if (!this.llm) throw new HttpError(503, "AI_NOT_CONFIGURED", "AI is not configured. Set GROQ_API_KEY and restart the API.");
-    const [resume] = await this.docs.listResumes(userId);
+    const resume = resumeId ? await this.docs.getResume(userId, resumeId) : (await this.docs.listResumes(userId))[0];
+    if (resumeId && !resume) throw new HttpError(404, "NOT_FOUND", "Resume not found");
     if (!resume) throw new HttpError(409, "NO_RESUME", "Upload a resume first.");
     if (resume.document.status !== "ready" || !resume.parsed) throw new HttpError(409, "RESUME_NOT_READY", "Your resume is still being processed.");
     const job = await this.docs.getJob(userId, jobId);
@@ -85,7 +86,7 @@ export class InterviewService {
     const chunks: ChunkMap = new Map(rows.map((r) => [`R${r.ordinal}`, { section: r.section, content: r.content }]));
 
     // Gaps come from the stored comparison when it is up to date.
-    const analysis = (await this.analyses.list(userId)).find((a) => a.jobId === jobId && !a.stale);
+    const analysis = (await this.analyses.list(userId)).find((a) => a.jobId === jobId && a.resumeId === resume.id && !a.stale);
     const topics = (analysis?.report.requirements ?? [])
       .filter((r) => r.verdict !== "met")
       .map((r) => ({ requirement: r.requirement, verdict: r.verdict as "missing" | "partial" }));
@@ -122,23 +123,24 @@ export class InterviewService {
        RETURNING id, created_at`,
       [userId, resume.id, jobId, JSON.stringify(report)],
     );
-    return { id: saved[0]!.id, jobId, report, createdAt: saved[0]!.created_at, stale: false };
+    return { id: saved[0]!.id, jobId, resumeId: resume.id, report, createdAt: saved[0]!.created_at, stale: false };
   }
 
   async list(userId: string): Promise<InterviewRow[]> {
-    const [resume] = await this.docs.listResumes(userId);
-    if (!resume) return [];
+    const resumes = new Map((await this.docs.listResumes(userId)).map((r) => [r.id, r]));
+    if (resumes.size === 0) return [];
     const jobs = new Map((await this.docs.listJobs(userId)).map((j) => [j.id, j]));
-    const { rows } = await this.pool.query<{ id: string; job_id: string; content: InterviewReport; created_at: Date }>(
-      "SELECT id, job_id, content, created_at FROM interview_preps WHERE user_id = $1 AND resume_id = $2",
-      [userId, resume.id],
+    const { rows } = await this.pool.query<{ id: string; job_id: string; resume_id: string; content: InterviewReport; created_at: Date }>(
+      "SELECT id, job_id, resume_id, content, created_at FROM interview_preps WHERE user_id = $1",
+      [userId],
     );
     return rows
-      .filter((r) => jobs.has(r.job_id))
+      .filter((r) => jobs.has(r.job_id) && resumes.has(r.resume_id))
       .map((r) => {
         const job = jobs.get(r.job_id)!;
+        const resume = resumes.get(r.resume_id)!;
         const stale = r.content.inputs.resumeVersion !== resume.version || !job.parsed || r.content.inputs.jobHash !== jobHash(job.parsed);
-        return { id: r.id, jobId: r.job_id, report: r.content, createdAt: r.created_at, stale };
+        return { id: r.id, jobId: r.job_id, resumeId: r.resume_id, report: r.content, createdAt: r.created_at, stale };
       });
   }
 }

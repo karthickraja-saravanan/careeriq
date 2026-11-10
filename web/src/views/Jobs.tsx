@@ -1,16 +1,19 @@
-import { RefreshCw } from "lucide-react";
+import { GitCompare, RefreshCw } from "lucide-react";
 import { AiButton } from "../AiButton";
 import { useRef, useState } from "react";
-import { api, isPending, type JobInfo, type JobParsed } from "../api";
+import { api, isPending, type AnalysisInfo, type JobInfo, type JobParsed, type ResumeInfo } from "../api";
 import { useAsyncList } from "../useAsyncList";
 import { PageHead } from "../ui";
 import { StatusChip } from "./Resumes";
 import { JobEditor } from "../JobEditor";
+import { readyResumes, resumeOption, useCareerData } from "../useCareerData";
 
 const anyPending = (items: JobInfo[]) => items.some((d) => isPending(d.status));
 
-export function Jobs() {
+export function Jobs({ go }: { go: (v: string) => void }) {
   const { items, error, refresh } = useAsyncList(api.listJobs, anyPending);
+  const { data: career } = useCareerData();
+  const resumes = career ? readyResumes(career) : [];
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [title, setTitle] = useState("");
@@ -92,6 +95,7 @@ export function Jobs() {
                       <div className="chips">{j.parsed.preferredSkills.map((s) => <span className="chip" key={s}>{s}</span>)}{j.parsed.preferredSkills.length === 0 && <span className="caption">None found</span>}</div></div>
                   </>
                 )}
+                {j.status === "ready" && <CompareRow job={j} resumes={resumes} analyses={career?.analyses ?? []} go={go} />}
                 <div className="row">
                   {j.status === "ready" && <button className="btn secondary" onClick={() => setEditingId(j.id)}>Edit</button>}
                   {(j.status === "ready" || j.status === "failed") && <AiButton variant="secondary" icon={RefreshCw} busy={busy} busyLabel="Reparsing…" onClick={() => void run(() => api.reparseJob(j.id))}>Reparse</AiButton>}
@@ -103,5 +107,45 @@ export function Jobs() {
         ))}
       </section>
     </>
+  );
+}
+
+/** Pick a resume and compare it with this job. Opens the Compare page on the result. */
+function CompareRow({ job, resumes, analyses, go }: { job: JobInfo; resumes: ResumeInfo[]; analyses: AnalysisInfo[]; go: (v: string) => void }) {
+  const [resumeId, setResumeId] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const chosen = resumes.find((r) => r.id === resumeId) ?? resumes[0];
+
+  if (resumes.length === 0) {
+    return <p className="caption">To compare this job, <button type="button" className="link" onClick={() => go("resume")}>add a resume</button> first.</p>;
+  }
+
+  const compare = async () => {
+    if (!chosen) return;
+    setError(null);
+    const existing = analyses.find((a) => a.jobId === job.id && a.resumeId === chosen.id && !a.stale);
+    if (existing) { go(`compare/${existing.id}`); return; } // already compared and nothing changed since
+    setBusy(true);
+    try {
+      const made = await api.analyze(job.id, chosen.id);
+      go(`compare/${made.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Comparison failed");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="compare-row">
+      <label className="compare-pick">
+        <span className="label">Compare with resume</span>
+        <select className="select" value={chosen?.id ?? ""} disabled={busy} onChange={(e) => setResumeId(e.target.value)} aria-label={`Resume to compare with ${job.label}`}>
+          {resumes.map((r) => <option key={r.id} value={r.id}>{resumeOption(r)}</option>)}
+        </select>
+      </label>
+      <AiButton icon={GitCompare} busy={busy} busyLabel="Comparing…" onClick={() => void compare()}>Compare</AiButton>
+      {error && <p role="alert" className="chip bad notice" style={{ flexBasis: "100%" }}>{error}</p>}
+    </div>
   );
 }

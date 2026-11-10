@@ -15,6 +15,7 @@ export const jobHash = (parsed: JobParsed) => createHash("sha1").update(JSON.str
 export interface AnalysisRow {
   id: string;
   jobId: string;
+  resumeId: string;
   score: number;
   report: MatchReport;
   createdAt: Date;
@@ -30,16 +31,22 @@ export class AnalysisService {
     private readonly modelName: string,
   ) {}
 
-  private async currentResume(userId: string) {
-    const [resume] = await this.docs.listResumes(userId);
-    return resume ?? null;
+  /** The chosen resume, or the newest one when none is chosen. A resume id of another user is "not found". */
+  private async resolveResume(userId: string, resumeId?: string) {
+    if (resumeId) {
+      const resume = await this.docs.getResume(userId, resumeId);
+      if (!resume) throw new HttpError(404, "NOT_FOUND", "Resume not found");
+      return resume;
+    }
+    const [latest] = await this.docs.listResumes(userId);
+    return latest ?? null;
   }
 
-  /** Compare the user's resume against one job, with every verdict tied to resume evidence. */
-  async analyze(userId: string, jobId: string): Promise<AnalysisRow> {
+  /** Compare one of the user's resumes against one job, with every verdict tied to resume evidence. */
+  async analyze(userId: string, jobId: string, resumeId?: string): Promise<AnalysisRow> {
     if (!this.llm) throw new HttpError(503, "AI_NOT_CONFIGURED", "AI is not configured. Set GROQ_API_KEY and restart the API.");
 
-    const resume = await this.currentResume(userId);
+    const resume = await this.resolveResume(userId, resumeId);
     if (!resume) throw new HttpError(409, "NO_RESUME", "Upload a resume first.");
     if (resume.document.status !== "ready" || !resume.parsed) throw new HttpError(409, "RESUME_NOT_READY", "Your resume is still being processed.");
 
@@ -63,7 +70,6 @@ export class AnalysisService {
       );
     } catch (err) {
       if (err instanceof ParseError) throw new HttpError(502, "AI_BAD_OUTPUT", "The AI returned an answer we could not use. Please try again.");
-      if (err instanceof LlmUnavailableError) console.error("[analyze] LLM unavailable:", err.message);
       if (err instanceof LlmUnavailableError) throw new HttpError(503, "AI_UNAVAILABLE", "The AI service is busy or unreachable. Please try again in a moment.");
       throw err;
     }
@@ -116,24 +122,25 @@ export class AnalysisService {
        RETURNING id, created_at`,
       [userId, resume.id, jobId, score, JSON.stringify(report), this.modelName, ANALYSIS_PROMPT_VERSION],
     );
-    return { id: saved[0]!.id, jobId, score, report, createdAt: saved[0]!.created_at, stale: false };
+    return { id: saved[0]!.id, jobId, resumeId: resume.id, score, report, createdAt: saved[0]!.created_at, stale: false };
   }
 
-  /** Analyses for the user's current resume, flagged stale when inputs changed since they were computed. */
+  /** All of the user's analyses (every resume and job pair), each flagged stale when its inputs changed since it was computed. */
   async list(userId: string): Promise<AnalysisRow[]> {
-    const resume = await this.currentResume(userId);
-    if (!resume) return [];
+    const resumes = new Map((await this.docs.listResumes(userId)).map((r) => [r.id, r]));
+    if (resumes.size === 0) return [];
     const jobs = new Map((await this.docs.listJobs(userId)).map((j) => [j.id, j]));
-    const { rows } = await this.pool.query<{ id: string; job_id: string; score: number; report: MatchReport; created_at: Date }>(
-      "SELECT id, job_id, score, report, created_at FROM analyses WHERE user_id = $1 AND resume_id = $2",
-      [userId, resume.id],
+    const { rows } = await this.pool.query<{ id: string; job_id: string; resume_id: string; score: number; report: MatchReport; created_at: Date }>(
+      "SELECT id, job_id, resume_id, score, report, created_at FROM analyses WHERE user_id = $1 ORDER BY created_at DESC",
+      [userId],
     );
     return rows
-      .filter((r) => jobs.has(r.job_id))
+      .filter((r) => jobs.has(r.job_id) && resumes.has(r.resume_id))
       .map((r) => {
         const job = jobs.get(r.job_id)!;
+        const resume = resumes.get(r.resume_id)!;
         const stale = r.report.inputs.resumeVersion !== resume.version || !job.parsed || r.report.inputs.jobHash !== jobHash(job.parsed);
-        return { id: r.id, jobId: r.job_id, score: r.score, report: r.report, createdAt: r.created_at, stale };
+        return { id: r.id, jobId: r.job_id, resumeId: r.resume_id, score: r.score, report: r.report, createdAt: r.created_at, stale };
       });
   }
 }

@@ -14,12 +14,17 @@ import { Interview } from "./views/Interview";
 
 const VIEWS = ["dashboard", "resume", "jobs", "compare", "assistant", "interview", "settings"];
 
-const fromHash = () => VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "dashboard";
+/** "#compare/<id>" is the Compare page with one comparison selected; the part after the slash is the page's parameter. */
+const fromHash = () => {
+  const [view = "", param = null] = location.hash.slice(1).split("/");
+  return { view: VIEWS.includes(view) ? view : "dashboard", param };
+};
 
 export function App() {
-  const [view, setView] = useState(fromHash);
+  const [route, setRoute] = useState(fromHash);
+  const { view, param } = route;
   useEffect(() => {
-    const onHash = () => setView(fromHash());
+    const onHash = () => setRoute(fromHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -31,8 +36,8 @@ export function App() {
       <AppShell view={view} go={go} chat={chat}>
         {view === "dashboard" && <Dashboard go={go} />}
         {view === "resume" && <Resumes />}
-        {view === "jobs" && <Jobs />}
-        {view === "compare" && <Compare go={go} />}
+        {view === "jobs" && <Jobs go={go} />}
+        {view === "compare" && <Compare go={go} selectedId={param} />}
         {view === "assistant" && <Assistant go={go} chat={chat} />}
         {view === "interview" && <Interview go={go} />}
         {view === "settings" && <Settings go={go} onReset={chat.reset} />}

@@ -4,12 +4,14 @@ import { PageHead, Ring, scoreTone } from "../ui";
 import { needsAnalysis, readyJobs, useCareerData } from "../useCareerData";
 
 export function Dashboard({ go }: { go: (v: string) => void }) {
-  const { data, error, busyJobs, analyze } = useCareerData();
+  const { data, error, busy, analyze } = useCareerData();
   if (!data) return <PageHead title="Where you stand" lead="Loading your documents…" />;
 
   const { resume, jobs, analyses } = data;
   const resumeReady = resume?.status === "ready" && resume.parsed;
+  // The dashboard summarises the newest resume; comparisons for other resumes are on the Compare page.
   const ranked = analyses
+    .filter((a) => a.resumeId === resume?.id)
     .map((a) => ({ a, job: jobs.find((j) => j.id === a.jobId) }))
     .filter((x): x is { a: typeof analyses[number]; job: JobInfo } => !!x.job)
     .sort((x, y) => y.a.score - x.a.score);
@@ -42,7 +44,7 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
       {resumeReady && todo.length > 0 && (
         <div className="card tight row spread">
           <span>{todo.length} {todo.length === 1 ? "role needs" : "roles need"} an analysis.</span>
-          <AiButton busy={busyJobs.size > 0} busyLabel="Analyzing…" onClick={() => void analyze(todo)}>Analyze all roles</AiButton>
+          <AiButton busy={busy.size > 0} busyLabel="Analyzing…" onClick={() => void analyze(todo)}>Analyze all roles</AiButton>
         </div>
       )}
 
@@ -58,7 +60,7 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
                     <h3>{job.title ?? "Untitled role"}</h3>
                     <p className="caption">{job.label} · {job.company ?? "Company not set"} · {scoreTone(a.score).label}{a.stale ? " · out of date" : ""}</p>
                   </div>
-                  <button className="btn secondary" onClick={() => go("compare")}>Details</button>
+                  <button className="btn secondary" onClick={() => go(`compare/${a.id}`)}>Details</button>
                 </div>
               ))}
             </div>

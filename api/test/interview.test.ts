@@ -65,6 +65,23 @@ describe.skipIf(!TEST_DB_URL)("interview prep (integration)", () => {
     expect((await (await fetch(`${t.base}/interview-preps`)).json()).preps).toHaveLength(1);
   });
 
+  it("is kept per resume and job", async () => {
+    const jobId = await seed();
+    const [resume] = (await (await fetch(`${t.base}/resumes`)).json()).resumes as { id: string }[];
+    await fetch(`${t.base}/resumes`, { method: "POST", body: form({ name: "cv2.docx", data: readFileSync(samples("resume-priya-nair.docx")) }) });
+    await t.queue.drain();
+    const second = ((await (await fetch(`${t.base}/resumes`)).json()).resumes as { id: string }[]).find((r) => r.id !== resume!.id)!.id;
+    for (const resumeId of [resume!.id, second]) {
+      t.llm!.responses = [output];
+      const res = await fetch(`${t.base}/interview-preps`, { method: "POST", headers: json, body: JSON.stringify({ jobId, resumeId }) });
+      expect((await res.json()).resumeId).toBe(resumeId);
+    }
+    const preps = (await (await fetch(`${t.base}/interview-preps`)).json()).preps as { resumeId: string }[];
+    expect(preps.map((p) => p.resumeId).sort()).toEqual([resume!.id, second].sort());
+    const bad = await fetch(`${t.base}/interview-preps`, { method: "POST", headers: json, body: JSON.stringify({ jobId, resumeId: "00000000-0000-0000-0000-0000000000aa" }) });
+    expect(bad.status).toBe(404);
+  });
+
   it("reports clear errors", async () => {
     expect((await gen("00000000-0000-0000-0000-0000000000aa")).status).toBe(409); // no resume yet
     const jobId = await seed();

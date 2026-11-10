@@ -74,7 +74,9 @@ export class ChatService {
     const hits = await retrieveBalanced(this.pool, this.embedder, userId, standalone, { jobIds, resumeLimit: 5, perJobLimit: 4 });
     const tRetrieve = Date.now();
 
-    const stored = (await this.analyses.list(userId)).filter((a) => !a.stale && jobIds.includes(a.jobId));
+    // Chat answers from the newest resume (the one retrieval searches), so only its stored analyses are quoted.
+    const newestResume = (await this.docs.listResumes(userId))[0];
+    const stored = (await this.analyses.list(userId)).filter((a) => !a.stale && a.resumeId === newestResume?.id && jobIds.includes(a.jobId));
     const withJobs = stored.flatMap((analysis) => {
       const job = jobInfos.find((j) => j.id === analysis.jobId);
       return job ? [{ analysis, job }] : [];
