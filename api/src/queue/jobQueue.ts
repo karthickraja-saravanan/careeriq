@@ -12,15 +12,31 @@ export const EXTRACT_QUEUE = "extract-document";
 export const PARSE_QUEUE = "parse-document";
 export const EMBED_QUEUE = "embed-document";
 
+export interface QueueLog {
+  info(obj: object, msg: string): void;
+  warn(obj: object, msg: string): void;
+  error(obj: object, msg: string): void;
+}
+
 /** Durable queue stored in Postgres: retries with backoff, survives API restarts, no Redis needed. */
-export async function startPgBossQueue(connectionString: string, handlers: Record<string, Handler>): Promise<JobQueue> {
+export async function startPgBossQueue(connectionString: string, handlers: Record<string, Handler>, log: QueueLog): Promise<JobQueue> {
   const boss = new PgBoss(connectionString);
-  boss.on("error", (err) => console.error("pg-boss error", err));
+  boss.on("error", (err) => log.error({ err }, "pg-boss error"));
   await boss.start();
   for (const [name, handler] of Object.entries(handlers)) {
     await boss.createQueue(name);
     await boss.work<{ documentId: string }>(name, async (jobs) => {
-      for (const job of jobs) await handler(job.data);
+      for (const job of jobs) {
+        const started = Date.now();
+        try {
+          await handler(job.data);
+          log.info({ queue: name, documentId: job.data.documentId, ms: Date.now() - started }, "job done");
+        } catch (err) {
+          // The handler already logged the stack; keep this to one line and let pg-boss retry.
+          log.warn({ queue: name, documentId: job.data.documentId, ms: Date.now() - started, reason: (err as Error).message }, "job failed, may retry");
+          throw err;
+        }
+      }
     });
   }
   return {

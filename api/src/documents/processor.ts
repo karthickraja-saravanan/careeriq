@@ -10,6 +10,11 @@ import type { Embedder } from "../embeddings/types.js";
 import { chunkJob, chunkPlainText, chunkResume } from "../chunking/chunker.js";
 import type { JobParsed, ResumeParsed } from "../parsing/schemas.js";
 
+/** The slice of a logger the handlers need. A pino Logger satisfies it; tests pass a no-op. */
+export interface ErrorLog {
+  error(obj: object, msg: string): void;
+}
+
 /**
  * Queue handler: turn an uploaded file (or pasted text) into clean text.
  * Expected failures (unreadable or scanned files) are recorded on the document and are not retried.
@@ -19,7 +24,7 @@ export function createExtractHandler(
   repo: DocumentRepo,
   storage: FileStorage,
   onExtracted: (documentId: string) => Promise<void>,
-  log: Pick<Console, "error"> = console,
+  log: ErrorLog,
 ) {
   return async ({ documentId }: { documentId: string }) => {
     const doc = await repo.getForProcessing(documentId);
@@ -55,7 +60,7 @@ export function createParseHandler(
   repo: DocumentRepo,
   llm: LlmClient | undefined,
   onParsed: (documentId: string) => Promise<void>,
-  log: Pick<Console, "error"> = console,
+  log: ErrorLog,
 ) {
   return async ({ documentId }: { documentId: string }) => {
     const doc = await repo.getForProcessing(documentId);
@@ -87,7 +92,7 @@ export function createParseHandler(
 }
 
 /** Queue handler: chunk a parsed document, embed the chunks and store them for search. */
-export function createEmbedHandler(repo: DocumentRepo, embedder: Embedder, log: Pick<Console, "error"> = console) {
+export function createEmbedHandler(repo: DocumentRepo, embedder: Embedder, log: ErrorLog) {
   return async ({ documentId }: { documentId: string }) => {
     const src = await repo.getIndexSource(documentId);
     if (!src) return; // deleted meanwhile

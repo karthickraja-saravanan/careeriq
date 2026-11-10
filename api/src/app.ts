@@ -3,6 +3,8 @@ import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { pinoHttp } from "pino-http";
+import type { Logger } from "pino";
+import { createLogger, serializers } from "./logging/logger.js";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import type { Env } from "./config/env.js";
@@ -35,16 +37,26 @@ export interface AppDeps {
   queue: JobQueue;
   embedder: Embedder;
   llm?: LlmClient;
+  /** Shared with the queue and LLM client so every log line goes through one place. Defaults to a new one from env. */
+  logger?: Logger;
 }
 
-export function buildApp({ env, pool, storage, queue, embedder, llm }: AppDeps): Express {
+export function buildApp({ env, pool, storage, queue, embedder, llm, logger = createLogger(env) }: AppDeps): Express {
   const app = express();
 
   const httpLogger = pinoHttp({
-    level: env.LOG_LEVEL,
+    logger,
+    // pino-http applies its own req/res serializers (full headers) unless told otherwise.
+    serializers: { req: serializers.req, res: serializers.res },
     genReqId: (req) => (req.headers["x-request-id"] as string | undefined) ?? randomUUID(),
+    // One line per request: "GET /api/v1/resumes 304 2ms". Level follows the outcome so errors stand out.
+    customLogLevel: (_req, res, err) => (err || res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info"),
+    customSuccessMessage: (req, res, ms) => `${req.method} ${req.url} ${res.statusCode} ${Math.round(ms)}ms`,
+    customErrorMessage: (req, res, err) => `${req.method} ${req.url} ${res.statusCode} ${err.message}`,
+    customReceivedMessage: undefined,
+    // Probes hit these every few seconds; logging them would bury real traffic.
+    autoLogging: { ignore: (req) => req.url === "/api/v1/health" || req.url === "/api/v1/ready" },
   });
-  const logger = httpLogger.logger;
   app.use(httpLogger);
   app.use(helmet());
   app.use(cors({ origin: env.CORS_ORIGIN.split(",") }));

@@ -1,3 +1,4 @@
+import { createLogger } from "./logging/logger.js";
 import { loadEnv } from "./config/env.js";
 import { createPool } from "./db/pool.js";
 import { buildApp } from "./app.js";
@@ -10,23 +11,24 @@ import { createLlmClient } from "./llm/factory.js";
 import { UsageRepo, createUsageRecorder } from "./llm/usage.js";
 
 const env = loadEnv();
+const logger = createLogger(env);
 const pool = createPool(env.DATABASE_URL);
 const storage = new FileStorage(env.STORAGE_DIR);
 const repo = new DocumentRepo(pool);
-const llm = createLlmClient(env, createUsageRecorder(new UsageRepo(pool)));
+const llm = createLlmClient(env, createUsageRecorder(new UsageRepo(pool), logger));
 const embedder = createTransformersEmbedder(env.EMBEDDING_CACHE_DIR);
-if (!llm) console.warn("LLM not configured (set GROQ_API_KEY): documents will be extracted but not parsed.");
+if (!llm) logger.warn("LLM not configured (set GROQ_API_KEY): documents will be extracted but not parsed.");
 
 // The extract handler needs the queue to hand work to the parse step, and the queue needs the handlers.
 let queue!: JobQueue;
 queue = await startPgBossQueue(env.DATABASE_URL, {
-  [EXTRACT_QUEUE]: createExtractHandler(repo, storage, (documentId) => queue.enqueue(PARSE_QUEUE, { documentId })),
-  [PARSE_QUEUE]: createParseHandler(repo, llm, (documentId) => queue.enqueue(EMBED_QUEUE, { documentId })),
-  [EMBED_QUEUE]: createEmbedHandler(repo, embedder),
-});
+  [EXTRACT_QUEUE]: createExtractHandler(repo, storage, (documentId) => queue.enqueue(PARSE_QUEUE, { documentId }), logger),
+  [PARSE_QUEUE]: createParseHandler(repo, llm, (documentId) => queue.enqueue(EMBED_QUEUE, { documentId }), logger),
+  [EMBED_QUEUE]: createEmbedHandler(repo, embedder, logger),
+}, logger);
 
-const server = buildApp({ env, pool, storage, queue, embedder, llm }).listen(env.PORT, "0.0.0.0", () => {
-  console.log(`API listening on :${env.PORT}`);
+const server = buildApp({ env, pool, storage, queue, embedder, llm, logger }).listen(env.PORT, "0.0.0.0", () => {
+  logger.info(`API listening on :${env.PORT}`);
 });
 
 const shutdown = () => {

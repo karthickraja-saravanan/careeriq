@@ -70,9 +70,19 @@ export class UsageRepo {
   }
 }
 
+/** A pino Logger fits; `info` is optional so tests can pass just `error`. */
+export interface UsageLog {
+  info?(obj: object, msg: string): void;
+  error(obj: object, msg: string): void;
+}
+
 /** Fire-and-forget recorder: a failed insert is logged and never affects the request that made the LLM call. */
-export function createUsageRecorder(repo: UsageRepo, log: Pick<Console, "error"> = console): UsageRecorder {
+export function createUsageRecorder(repo: UsageRepo, log: UsageLog): UsageRecorder {
   return (record) => {
+    log.info?.(
+      { purpose: record.purpose, model: record.model, promptTokens: record.promptTokens, completionTokens: record.completionTokens, latencyMs: record.latencyMs, status: record.status },
+      "llm call",
+    );
     if (!record.userId) return;
     repo.record({ ...record, userId: record.userId }).catch((err) => log.error({ err }, "could not record LLM usage"));
   };
