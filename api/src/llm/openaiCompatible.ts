@@ -40,7 +40,10 @@ export function createOpenAiCompatibleClient(opts: OpenAiCompatibleOptions): Llm
         continue;
       }
       if (res.ok) return res;
-      if (!RETRYABLE.has(res.status) || attempt >= maxAttempts) throw new LlmUnavailableError(`LLM request failed with status ${res.status}`);
+      if (!RETRYABLE.has(res.status) || attempt >= maxAttempts) {
+        const detail = (await res.text().catch(() => "")).slice(0, 500);
+        throw new LlmUnavailableError(`LLM request failed with status ${res.status}${detail ? `: ${detail}` : ""}`);
+      }
       const retryAfter = Number(res.headers.get("retry-after"));
       await sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter, 20) * 1000 : 500 * 2 ** (attempt - 1));
     }

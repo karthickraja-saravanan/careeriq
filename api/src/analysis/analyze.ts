@@ -63,6 +63,7 @@ export class AnalysisService {
       );
     } catch (err) {
       if (err instanceof ParseError) throw new HttpError(502, "AI_BAD_OUTPUT", "The AI returned an answer we could not use. Please try again.");
+      if (err instanceof LlmUnavailableError) console.error("[analyze] LLM unavailable:", err.message);
       if (err instanceof LlmUnavailableError) throw new HttpError(503, "AI_UNAVAILABLE", "The AI service is busy or unreachable. Please try again in a moment.");
       throw err;
     }
