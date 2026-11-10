@@ -3,6 +3,7 @@
   "private": true,
   "workspaces": ["api", "web"],
   "scripts": {
+    "dev": "npm run dev:api & npm run dev:web & wait",
     "dev:api": "npm run dev -w api",
     "dev:web": "npm run dev -w web",
     "build": "npm run build -w api && npm run build -w web",
