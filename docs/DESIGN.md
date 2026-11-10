@@ -1,7 +1,5 @@
 # CareerIQ: Design Proposal (v1, for approval)
 
-Scope note: the deadline is Thursday 2026-11-12, so this design is deliberately a "thin but real" version of the full product brief. Section 9 marks what is in the 2-day cut and what is documented as future work.
-
 ---
 
 ## 1. Functional requirements
