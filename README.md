@@ -115,4 +115,5 @@ One example where I corrected the AI: it built the first version around a single
 
 - Row-level security and end-to-end tests.
 - Better retrieval: category filters and reranking.
+- Tailor the resume to a job description with AI: given a chosen job, suggest rewrites of the resume's real bullets and skills wording to match it, shown as a before/after diff the user accepts or rejects. It must only reword what the resume already shows and never invent experience.
 - Turn it into a marketplace where candidates connect their job portals and use their APIs to compare their resumes with the jobs they are applying for.
