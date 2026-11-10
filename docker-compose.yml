@@ -1,0 +1,32 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: careeriq
+      POSTGRES_PASSWORD: careeriq
+      POSTGRES_DB: careeriq
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U careeriq"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: { context: ., dockerfile: api/Dockerfile }
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://careeriq:careeriq@db:5432/careeriq
+      NODE_ENV: production
+    depends_on: { db: { condition: service_healthy } }
+    ports: ["3001:3001"]
+    volumes: [storage:/app/storage]
+
+  web:
+    build: { context: ., dockerfile: web/Dockerfile }
+    depends_on: [api]
+    ports: ["8080:80"]
+
+volumes:
+  pgdata:
+  storage:
