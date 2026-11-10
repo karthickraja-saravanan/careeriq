@@ -6,7 +6,7 @@ import { HttpError } from "../errors.js";
 import { detectFormat, MIME_BY_FORMAT } from "../documents/fileTypes.js";
 import type { DocumentRepo, JobSummary, ResumeSummary } from "../documents/repo.js";
 import type { FileStorage } from "../documents/storage.js";
-import { EXTRACT_QUEUE, PARSE_QUEUE, type JobQueue } from "../queue/jobQueue.js";
+import { EMBED_QUEUE, EXTRACT_QUEUE, PARSE_QUEUE, type JobQueue } from "../queue/jobQueue.js";
 import { jobParsedSchema, resumeParsedSchema } from "../parsing/schemas.js";
 import { computeYearsOfExperience } from "../parsing/experience.js";
 
@@ -96,7 +96,9 @@ export function documentRoutes({ repo, storage, queue, maxUploadBytes }: Documen
     const { parsed } = z.object({ parsed: resumeParsedSchema }).parse(req.body);
     const ok = await repo.updateResume(req.userId, id, parsed, computeYearsOfExperience(parsed.experience).years);
     if (!ok) throw new HttpError(404, "NOT_FOUND", "Resume not found");
-    res.json(presentResume((await repo.getResume(req.userId, id))!, false));
+    const updated = (await repo.getResume(req.userId, id))!;
+    await reindex(updated.document.id); // edits must be searchable too
+    res.json(presentResume(updated, false));
   });
 
   router.post("/resumes/:id/reparse", async (req, res) => {
@@ -105,6 +107,11 @@ export function documentRoutes({ repo, storage, queue, maxUploadBytes }: Documen
     await requeue(r.document.id, r.document.raw_text);
     res.status(202).json({ id: r.id, status: "extracted" });
   });
+
+  async function reindex(documentId: string) {
+    await repo.setStatus(documentId, "embedding");
+    await queue.enqueue(EMBED_QUEUE, { documentId });
+  }
 
   /** Re-run parsing from the stored text, or extraction first when no text was ever extracted. */
   async function requeue(documentId: string, rawText: string | null) {
@@ -146,7 +153,9 @@ export function documentRoutes({ repo, storage, queue, maxUploadBytes }: Documen
     }).parse(req.body);
     const ok = await repo.updateJob(req.userId, id, { ...body, title: body.title || null, company: body.company || null });
     if (!ok) throw new HttpError(404, "NOT_FOUND", "Job not found");
-    res.json(presentJob((await repo.getJob(req.userId, id))!, false));
+    const updated = (await repo.getJob(req.userId, id))!;
+    await reindex(updated.document.id);
+    res.json(presentJob(updated, false));
   });
 
   router.post("/jobs/:id/reparse", async (req, res) => {

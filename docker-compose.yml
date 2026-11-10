@@ -20,7 +20,7 @@ services:
       NODE_ENV: production
     depends_on: { db: { condition: service_healthy } }
     ports: ["3001:3001"]
-    volumes: [storage:/app/storage]
+    volumes: [storage:/app/storage, models:/app/.models]
 
   web:
     build: { context: ., dockerfile: web/Dockerfile }
@@ -30,3 +30,4 @@ services:
 volumes:
   pgdata:
   storage:
+  models:

@@ -14,15 +14,18 @@ import { ZodError } from "zod";
 import { DocumentRepo } from "./documents/repo.js";
 import type { FileStorage } from "./documents/storage.js";
 import type { JobQueue } from "./queue/jobQueue.js";
+import type { Embedder } from "./embeddings/types.js";
+import { searchRoutes } from "./routes/search.js";
 
 export interface AppDeps {
   env: Env;
   pool: pg.Pool;
   storage: FileStorage;
   queue: JobQueue;
+  embedder: Embedder;
 }
 
-export function buildApp({ env, pool, storage, queue }: AppDeps): Express {
+export function buildApp({ env, pool, storage, queue, embedder }: AppDeps): Express {
   const app = express();
 
   app.use(
@@ -37,6 +40,7 @@ export function buildApp({ env, pool, storage, queue }: AppDeps): Express {
   app.use(express.json({ limit: "1mb" }));
 
   app.use("/api/v1", healthRouter(pool));
+  app.use("/api/v1", demoUser, searchRoutes(pool, embedder));
   app.use("/api/v1", demoUser, documentRoutes({ repo: new DocumentRepo(pool), storage, queue, maxUploadBytes: env.MAX_UPLOAD_BYTES }));
 
   app.use((_req, res) => {

@@ -1,5 +1,6 @@
 import type pg from "pg";
 import type { JobParsed, ResumeParsed } from "../parsing/schemas.js";
+import type { Chunk } from "../chunking/chunker.js";
 
 export type DocKind = "resume" | "job";
 export type DocStatus = "uploaded" | "extracting" | "extracted" | "parsing" | "embedding" | "ready" | "failed";
@@ -198,5 +199,61 @@ export class DocumentRepo {
       [userId, id, patch.title, patch.company, JSON.stringify(patch.parsed)],
     );
     return (r.rowCount ?? 0) > 0;
+  }
+
+  /** Everything the indexer needs to chunk a document, looked up by document id (worker side, not user-scoped). */
+  async getIndexSource(documentId: string) {
+    const { rows } = await this.pool.query<{
+      user_id: string; kind: DocKind; raw_text: string | null; resume_id: string | null; resume_parsed: ResumeParsed | null;
+      job_id: string | null; job_parsed: JobParsed | null; label: string | null; title: string | null; company: string | null;
+    }>(
+      `SELECT d.user_id, d.kind, d.raw_text, r.id AS resume_id, r.parsed AS resume_parsed,
+              j.id AS job_id, j.parsed AS job_parsed, j.label, j.title, j.company
+       FROM documents d
+       LEFT JOIN resumes r ON r.document_id = d.id
+       LEFT JOIN jobs j ON j.document_id = d.id
+       WHERE d.id = $1`,
+      [documentId],
+    );
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      userId: r.user_id,
+      kind: r.kind,
+      rawText: r.raw_text,
+      ownerId: (r.kind === "resume" ? r.resume_id : r.job_id) as string,
+      parsed: (r.kind === "resume" ? r.resume_parsed : r.job_parsed) as ResumeParsed | JobParsed | null,
+      label: r.label,
+      title: r.title,
+      company: r.company,
+    };
+  }
+
+  /** Replace all chunks of a document atomically so searches never see a half-built index. */
+  async replaceChunks(
+    userId: string,
+    documentId: string,
+    owner: { type: DocKind; id: string },
+    chunks: (Chunk & { embedding: number[] })[],
+    embeddingModel: string,
+  ) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("DELETE FROM chunks WHERE document_id = $1", [documentId]);
+      for (const c of chunks) {
+        await client.query(
+          `INSERT INTO chunks (user_id, document_id, owner_type, owner_id, section, ordinal, content, token_count, embedding, embedding_model)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::vector, $10)`,
+          [userId, documentId, owner.type, owner.id, c.section, c.ordinal, c.content, c.tokenCount, `[${c.embedding.join(",")}]`, embeddingModel],
+        );
+      }
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 }

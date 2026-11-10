@@ -1,0 +1,15 @@
+[
+  { "question": "What messaging or streaming technology does the role require?", "job": "Job #1", "contains": "Kafka" },
+  { "question": "How many years of backend experience are required?", "job": "Job #1", "contains": "5+ years" },
+  { "question": "Which frontend framework does the Lumen Health role need?", "job": "Job #2", "contains": "React" },
+  { "question": "Does this role need GraphQL?", "job": "Job #2", "contains": "GraphQL" },
+  { "question": "Is accessibility part of the job?", "job": "Job #2", "contains": "accessible" },
+  { "question": "Which infrastructure as code tool does the platform role use?", "job": "Job #3", "contains": "Terraform" },
+  { "question": "What are the nice to have skills for the platform engineer role?", "job": "Job #3", "contains": "Prometheus" },
+  { "question": "What did I do to improve performance?", "owner": "resume", "contains": "latency" },
+  { "question": "What testing experience do I have?", "owner": "resume", "contains": "Jest" },
+  { "question": "Which cloud platform have I used?", "owner": "resume", "contains": "AWS" },
+  { "question": "Where did I work before Finlytics?", "owner": "resume", "contains": "Cartwheel" },
+  { "question": "What certifications do I hold?", "owner": "resume", "contains": "Cloud Practitioner" },
+  { "question": "Which side projects have I built?", "owner": "resume", "contains": "CSV validator" }
+]

@@ -12,6 +12,7 @@ const schema = z.object({
   LLM_MODEL_MAIN: z.string().default("llama-3.3-70b-versatile"),
   LLM_MODEL_FAST: z.string().default("llama-3.1-8b-instant"),
   OLLAMA_BASE_URL: z.string().default("http://localhost:11434/v1"),
+  EMBEDDING_CACHE_DIR: z.string().default("./.models"),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(5 * 1024 * 1024),
 });
 

@@ -5,3 +5,4 @@ dist/
 storage/
 .vite/
 coverage/
+.models/

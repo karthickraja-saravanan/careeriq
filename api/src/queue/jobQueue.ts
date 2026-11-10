@@ -10,6 +10,7 @@ export interface JobQueue {
 
 export const EXTRACT_QUEUE = "extract-document";
 export const PARSE_QUEUE = "parse-document";
+export const EMBED_QUEUE = "embed-document";
 
 /** Durable queue stored in Postgres: retries with backoff, survives API restarts, no Redis needed. */
 export async function startPgBossQueue(connectionString: string, handlers: Record<string, Handler>): Promise<JobQueue> {

@@ -6,6 +6,9 @@ import type { LlmClient } from "../llm/types.js";
 import { LlmUnavailableError } from "../llm/types.js";
 import { ParseError, parseJob, parseResume } from "../parsing/parse.js";
 import { computeYearsOfExperience } from "../parsing/experience.js";
+import type { Embedder } from "../embeddings/types.js";
+import { chunkJob, chunkPlainText, chunkResume } from "../chunking/chunker.js";
+import type { JobParsed, ResumeParsed } from "../parsing/schemas.js";
 
 /**
  * Queue handler: turn an uploaded file (or pasted text) into clean text.
@@ -48,7 +51,12 @@ export function createExtractHandler(
  * Queue handler: turn extracted text into structured data with the LLM.
  * Bad model output is recorded as a failure the user can retry; transient LLM problems are retried by the queue.
  */
-export function createParseHandler(repo: DocumentRepo, llm: LlmClient | undefined, log: Pick<Console, "error"> = console) {
+export function createParseHandler(
+  repo: DocumentRepo,
+  llm: LlmClient | undefined,
+  onParsed: (documentId: string) => Promise<void>,
+  log: Pick<Console, "error"> = console,
+) {
   return async ({ documentId }: { documentId: string }) => {
     const doc = await repo.getForProcessing(documentId);
     if (!doc?.raw_text) return;
@@ -64,7 +72,7 @@ export function createParseHandler(repo: DocumentRepo, llm: LlmClient | undefine
       } else {
         await repo.saveJobParse(documentId, await parseJob(llm, doc.raw_text));
       }
-      await repo.setStatus(documentId, "ready");
+      await onParsed(documentId); // indexing marks the document ready
     } catch (err) {
       if (err instanceof ParseError) {
         await repo.setStatus(documentId, "failed", { error: `${err.message} Use Reparse to try again.` });
@@ -73,6 +81,29 @@ export function createParseHandler(repo: DocumentRepo, llm: LlmClient | undefine
       log.error({ err, documentId }, "parsing failed");
       const busy = err instanceof LlmUnavailableError;
       await repo.setStatus(documentId, "failed", { error: busy ? "The AI service is busy or unreachable. Use Reparse in a moment." : "Processing failed. Use Reparse to try again." });
+      throw err;
+    }
+  };
+}
+
+/** Queue handler: chunk a parsed document, embed the chunks and store them for search. */
+export function createEmbedHandler(repo: DocumentRepo, embedder: Embedder, log: Pick<Console, "error"> = console) {
+  return async ({ documentId }: { documentId: string }) => {
+    const src = await repo.getIndexSource(documentId);
+    if (!src) return; // deleted meanwhile
+    await repo.setStatus(documentId, "embedding");
+    try {
+      const chunks = src.parsed
+        ? src.kind === "resume"
+          ? chunkResume(src.parsed as ResumeParsed)
+          : chunkJob(src.parsed as JobParsed, src.label ?? "Job", src.title, src.company)
+        : chunkPlainText(src.rawText ?? "", src.kind === "resume" ? "Resume" : src.label ?? "Job");
+      const vectors = await embedder.embed(chunks.map((c) => c.content), "passage");
+      await repo.replaceChunks(src.userId, documentId, { type: src.kind, id: src.ownerId }, chunks.map((c, i) => ({ ...c, embedding: vectors[i]! })), embedder.model);
+      await repo.setStatus(documentId, "ready");
+    } catch (err) {
+      log.error({ err, documentId }, "indexing failed");
+      await repo.setStatus(documentId, "failed", { error: "The search index could not be built. Use Reparse in a moment." });
       throw err;
     }
   };
