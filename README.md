@@ -114,6 +114,6 @@ One example where I corrected the AI: it built the first version around a single
 ## What I would do next
 
 - Row-level security and end-to-end tests.
-- Better retrieval: category filters and reranking.
+- Better retrieval on top of the current hybrid search (vector + keyword, merged with reciprocal rank fusion): add a reranking step (a cross-encoder over the top results) and category filters (skills, experience, education), then re-run the retrieval eval to measure the change.
 - Tailor the resume to a job description with AI: given a chosen job, suggest rewrites of the resume's real bullets and skills wording to match it, shown as a before/after diff the user accepts or rejects. It must only reword what the resume already shows and never invent experience.
 - Turn it into a marketplace where candidates connect their job portals and use their APIs to compare their resumes with the jobs they are applying for.
