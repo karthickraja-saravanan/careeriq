@@ -2,7 +2,7 @@
 
 CareerIQ compares one or more resumes against many job descriptions and lets you ask questions about them in a chat. It gives a per-job match analysis with evidence, grounded chat answers with clickable citations, and interview prep built from your real gaps.
 
-<!-- TODO(Karthick): add 1 hero screenshot (dashboard) -->
+![CareerIQ dashboard](screenshots/02_dashboard.png)
 
 ## Quick start
 
@@ -33,6 +33,18 @@ To run fully local instead of Groq, set `LLM_PROVIDER=ollama` and `OLLAMA_BASE_U
 - **Assistant:** streaming chat over your documents. Type `@CV1` or `@J2` (or `/resume`, `/job`) to pin a resume or job. Answers cite passages like `[R3]`, `[J2-1]`; click a citation to see the source text.
 - **Interview prep:** per job and resume, technical and resume-based questions built from the gaps found in the comparison, with a flash-card practice mode.
 - **Settings:** sample data, delete-my-data, and an AI usage report (tokens and latency per call).
+
+## Screenshots
+
+| | |
+|---|---|
+| **Dashboard**: roles ranked by fit and the skills missing across them<br>![Dashboard](screenshots/02_dashboard.png) | **Resumes**: any number of resumes, each with a CV badge<br>![Resumes](screenshots/01_resume.png) |
+| **Job descriptions**: pick a resume and compare<br>![Jobs](screenshots/01_job.png) | **Compare**: score, per-requirement evidence and gaps<br>![Compare](screenshots/02_compare.png) |
+| **Assistant**: streamed answer with clickable citations<br>![Assistant](screenshots/02_assistant.png) | **Assistant**: follow-up with sources listed<br>![Assistant answer](screenshots/03_assistant.png) |
+| **Interview prep**: practice mode<br>![Interview practice](screenshots/02_interview_prep.png) | **Interview prep**: question list with the resume evidence behind each<br>![Interview list](screenshots/03_interview_prep.png) |
+| **Settings, AI usage**: tokens and latency per feature<br>![AI usage](screenshots/01_ai_usage.png) | **Settings, sample data**<br>![Sample data](screenshots/01_sample_data.png) |
+
+Empty states and the rest are in [`screenshots/`](screenshots/).
 
 ## Architecture
 
