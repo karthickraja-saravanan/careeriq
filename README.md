@@ -48,6 +48,10 @@ Empty states and the rest are in [`screenshots/`](screenshots/).
 
 ## Architecture
 
+![CareerIQ architecture](docs/architecture.svg)
+
+The diagram shows the app, the two background flows (ingestion and chat), and what each part talks to. The notes below explain the choices.
+
 ```
 React + Vite  --REST/SSE-->  Express API (TypeScript)
                                routes -> services -> repositories
