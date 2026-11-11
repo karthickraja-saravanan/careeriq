@@ -41,9 +41,10 @@ export function Dashboard({ go, ask }: { go: (v: string) => void; ask: (question
       <PageHead title={resumeReady && firstName ? `${greeting()}, ${firstName}` : greeting()} lead={lead} />
       {error && <p role="alert" className="chip bad notice">{error}</p>}
       <section className="grid cols-3" aria-label="Summary">
-        <div className="card tight"><span className="label">Resume</span>
+        <div className="card tight"><span className="label">Resume{resume ? ` · ${resume.label}` : ""}</span>
           <h2>{resumeReady ? (resume.parsed!.headline ?? resume.parsed!.name ?? "Resume ready") : resume ? "Processing…" : "Not added"}</h2>
-          <span className="caption">{resumeReady ? `${resume.parsed!.skills.length} skills${resume.yearsExperience !== null ? ` · about ${resume.yearsExperience} years` : ""}` : "Upload a PDF or DOCX"}</span></div>
+          <span className="caption">{resumeReady ? `${resume.parsed!.skills.length} skills${resume.yearsExperience !== null ? ` · about ${resume.yearsExperience} years` : ""}` : "Upload a PDF or DOCX"}</span>
+          {resume && <span className="caption">{resume.filename ?? "Pasted text"} · uploaded {new Date(resume.createdAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}{data.resumes.length > 1 ? ` · newest of ${data.resumes.length}` : ""}</span>}</div>
         <div className="card tight"><span className="label">Roles tracked</span><h2 className="num">{jobs.length}</h2><span className="caption">{readyJobs(data).length} ready to compare</span></div>
         <div className="card tight"><span className="label">Best match</span><h2 className="num">{best ? `${best.a.score} / 100` : "Not yet"}</h2><span className="caption">{best ? `${best.job.title ?? ""}, ${best.job.company ?? ""}` : "Run an analysis"}</span></div>
       </section>
